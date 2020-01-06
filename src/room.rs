@@ -18,6 +18,8 @@ pub struct User {
     pub online: bool,
     pub start_prestart: bool,
     pub prestart_get: bool,
+    pub recent_users: Vec<Vec<String>>,
+    pub blacklist: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
