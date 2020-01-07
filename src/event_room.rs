@@ -25,7 +25,7 @@ use crate::msg::*;
 use crate::elo::*;
 use std::process::Command;
 
-const TEAM_SIZE: i16 = 1;
+const TEAM_SIZE: i16 = 2;
 const MATCH_SIZE: usize = 2;
 const SCORE_INTERVAL: i16 = 100;
 const RECENT_GAME_NUM: usize = 2;
@@ -257,6 +257,7 @@ pub struct QueueRoomData {
     pub ready: i8,
     pub queue_cnt: i16,
     pub block: Vec<String>,
+    pub blacklist: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -270,10 +271,12 @@ pub struct ReadyGroupData {
     pub game_status: u16,
     pub queue_cnt: i16,
     pub block: Vec<String>,
+    pub blacklist: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct ReadyGameData {
+    pub user_name: Vec<String>,
     pub gid: Vec<u32>,
     pub group: Vec<Vec<u32>>,
     pub team_len: usize,
@@ -579,8 +582,13 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>)
                             let mut block: bool = false;
                             
                             for u in &v.borrow_mut().user_name {
-                                
-                                if g.block.contains(u) {
+                                if g.blacklist.contains(u) || g.block.contains(u){
+                                    block = true;
+                                    break;
+                                }
+                            }
+                            for u in &g.user_name {
+                                if v.borrow().blacklist.contains(&u) || v.borrow().block.contains(&u){
                                     block = true;
                                     break;
                                 }
@@ -595,6 +603,7 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>)
                                 g = Default::default();
                                 g.rid.push(v.borrow().rid);
                                 g.block = [g.block.as_slice(), v.borrow().block.clone().as_slice()].concat();
+                                g.blacklist = [g.blacklist.as_slice(), v.borrow().blacklist.clone().as_slice()].concat();
                                 g.user_name = [g.user_name.as_slice(), v.borrow().user_name.as_slice()].concat();
                                
                                 let mut ng = (g.avg_ng * g.user_len + v.borrow().avg_ng * v.borrow().user_len) as i16 / (g.user_len + v.borrow().user_len) as i16;
@@ -669,13 +678,18 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>)
                             let mut block: bool = false;
                             
                             for u in &rg.borrow_mut().user_name {
-                                
                                 if fg.block.contains(u) {
                                     block = true;
                                     break;
-                                }
-                                
+                                }                                
                             }
+                            for u in &fg.user_name {
+                                if rg.borrow().block.contains(&u) {
+                                    block = true;
+                                    break;
+                                }   
+                            }
+
                             if block {
                                 continue;
                             }
@@ -699,6 +713,7 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>)
                                     total_ng += rg.borrow().avg_ng as i16;
                                     fg.group.push(rg.borrow().rid.clone());
                                     fg.block = [fg.block.as_slice(), rg.borrow().block.clone().as_slice()].concat();
+                                    fg.user_name = [fg.user_name.as_slice(), rg.borrow().user_name.clone().as_slice()].concat();
                                     fg.team_len += 1;
                                     fg.gid.push(*id);
                                 }
@@ -830,35 +845,63 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
         let mut rk: i16 = 0;
         let mut name: String = "".to_owned();
         let id = 0;
+        
         for row in qres2 {
             let a = row?.clone();
+            let id: String =mysql::from_value(a.get("userid").unwrap());           
             let user = User {
-                id: mysql::from_value(a.get("userid").unwrap()),
+                id: id.clone(),
                 hero: mysql::from_value(a.get("name").unwrap()),
                 online: false,
                 ng: mysql::from_value(a.get("ng").unwrap()),
                 rk: mysql::from_value(a.get("rk").unwrap()),
                 ..Default::default()
             };
+            TotalUsers.insert(id, Rc::new(RefCell::new(user.clone())));
+        }
+
+        let s = format!(r#"select * from user_blacklist;"#);
+        let q = conn.query(s.clone())?;
+            
+        for r in q {
+            let a = r?.clone();
+            let mut tmp: Vec<String> = vec![];
             userid = mysql::from_value(a.get("userid").unwrap());
-            //println!("userid: {}", userid);
+            let mut u = TotalUsers.get(&userid);
+            if let Some(u) = u {
+                u.borrow_mut().blacklist.push(mysql::from_value(a.get("black_id").unwrap()));
+                println!("userid: {}, blacklist: {:?}", u.borrow().id, u.borrow().blacklist);
+            }
+            
+        }
+            
+            println!("userid: {}", userid);
             //ng = mysql::from_value(a.get("ng").unwrap());
             //rk = mysql::from_value(a.get("rk").unwrap());
             //name = mysql::from_value(a.get("name").unwrap());
-            TotalUsers.insert(userid, Rc::new(RefCell::new(user.clone())));
-        }
+            
 
-        /*
+        
         let get_game_id = format!("select MAX(game_id) from game_info;");
         let qres3: mysql::QueryResult = conn.query(get_game_id.clone())?;
         
         for row in qres3 {
             let a = row?.clone();
-            game_id = mysql::from_value(a.get("MAX(game_id)").unwrap());
+            let q = mysql::from_value_opt(a.get("MAX(game_id)").unwrap());
+            let q = match q {
+                Ok(q) => {
+                    game_id = q;
+                },
+                Err(err) => {
+                    game_id = 0;
+                },
+            };
+
+            
             
             //println!("game id: {}", game_id);
         }
-        */
+        
         println!("game id: {}", game_id);
         
         loop {
@@ -919,6 +962,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                 let mut rm_rid: Vec<u32> = vec![]; 
                                 let mut users: Vec<String> = vec![];
                                 let mut block: Vec<String> = vec![];
+                                let mut blacklist: Vec<String> = vec![];
                                 for t in &group.borrow().teams {
                                     for c in &t.borrow().checks {
                                         if c.check < 0 {
@@ -935,7 +979,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                             for index in &u.borrow().recent_users {
                                                 block = [block.as_slice(), index.clone().as_slice()].concat();
                                             }
-                                            block = [block.as_slice(), u.borrow().blacklist.as_slice()].concat();
+                                            blacklist = [blacklist.as_slice(), u.borrow().blacklist.as_slice()].concat();
                                             
                                         }
                                     }
@@ -961,6 +1005,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                 ready: 0,
                                                 queue_cnt: 1,
                                                 block: block.clone(),
+                                                blacklist: blacklist.clone(),
                                             };
                                             QueueSender.send(QueueData::UpdateRoom(data));
                                         }
@@ -1322,6 +1367,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                         gr.borrow_mut().user_cancel(&x.id);
                                                         let mut users: Vec<String> = vec![];
                                                         let mut block: Vec<String> = vec![];
+                                                        let mut blacklist: Vec<String> = vec![];
                                                         for room in &gr.borrow().rooms {
                                                             for u in &room.borrow().users {
                                                                 
@@ -1329,7 +1375,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                                 for index in &u.borrow().recent_users {
                                                                     block = [block.as_slice(), index.clone().as_slice()].concat();
                                                                 }
-                                                                block = [block.as_slice(), u.borrow().blacklist.as_slice()].concat();
+                                                                blacklist = [blacklist.as_slice(), u.borrow().blacklist.as_slice()].concat();
                                             
                                                             }
                                                         }
@@ -1346,6 +1392,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                                     ready: 0,
                                                                     queue_cnt: 1,
                                                                     block: block.clone(),
+                                                                    blacklist: blacklist.clone(),
                                                                 };
                                                                 QueueSender.send(QueueData::UpdateRoom(data));
                                                             }
@@ -1428,17 +1475,19 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                         if let Some(y) = r {
                                             let mut users: Vec<String> = vec![];
                                             let mut block: Vec<String> = vec![];
+                                            let mut blacklist: Vec<String> = vec![];
                                             for u in &y.borrow().users {                  
                                                 users.push(u.borrow().id.clone());
                                                 
                                                 for index in &u.borrow().recent_users {
                                                     block = [block.as_slice(), index.clone().as_slice()].concat();
                                                 }
-                                                block = [block.as_slice(), u.borrow().blacklist.as_slice()].concat();
+                                                blacklist = [blacklist.as_slice(), u.borrow().blacklist.as_slice()].concat();
                                                 
                                             }
                                             println!("users: {:?}", users);
                                             println!("block: {:?}", block);
+                                            println!("blacklist: {:?}", blacklist);
                                             y.borrow_mut().update_avg();
                                             let mut data = QueueRoomData {
                                                 user_name: users.clone(),
@@ -1450,6 +1499,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                 ready: 0,
                                                 queue_cnt: 1,
                                                 block: block.clone(),
+                                                blacklist: blacklist.clone(),
                                             };
                                             //println!("Totalroom rid: {}", rid);
                                             QueueSender.send(QueueData::UpdateRoom(data));
