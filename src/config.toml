@@ -1,0 +1,26 @@
+[game_setting]
+SCORE_INTERVAL = 100
+BLOCK_RECENT_PLAYER_OF_GAMES = 3
+
+[[game_mode]]
+MODE = "ng1p2t"
+TEAM_SIZE = 1
+MATCH_SIZE = 2
+
+
+[[game_mode]]
+MODE = "rk1p2t"
+TEAM_SIZE = 1
+MATCH_SIZE = 2
+
+
+[[game_mode]]
+MODE = "ng5p2t"
+TEAM_SIZE = 5
+MATCH_SIZE = 2
+
+
+[[game_mode]]
+MODE = "rk5p2t"
+TEAM_SIZE = 5
+MATCH_SIZE = 2

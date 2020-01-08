@@ -5,13 +5,16 @@ use crate::msg::*;
 use crossbeam_channel::{bounded, tick, Sender, Receiver, select};
 use failure::Error;
 
+
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct User {
     pub id: String,
     pub name: String,
     pub hero: String,
-    pub ng: i16,
-    pub rk: i16,
+    pub ng1v1: i16,
+    pub ng5v5: i16,
+    pub rk1v1: i16,
+    pub rk5v5: i16,
     pub rid: u32,
     pub gid: u32,
     pub game_id: u32,
@@ -28,24 +31,34 @@ pub struct RoomData {
     pub users: Vec<Rc<RefCell<User>>>,
     pub master: String,
     pub last_master: String,
-    pub avg_ng: i16,
-    pub avg_rk: i16,
+    pub mode: String,
+    pub avg_ng1v1: i16,
+    pub avg_rk1v1: i16,
+    pub avg_ng5v5: i16,
+    pub avg_rk5v5: i16,
     pub ready: i8,
     pub queue_cnt: i16,
 }
 
 impl RoomData {
     pub fn update_avg(&mut self) {
-        let mut sum_ng = 0;
-        let mut sum_rk = 0;
-        for user in &self.users {
-            sum_ng += user.borrow().ng;
-            sum_rk += user.borrow().rk;
-        }
-        if self.users.len() > 0 {
-            self.avg_ng = sum_ng/self.users.len() as i16;
-            self.avg_rk = sum_rk/self.users.len() as i16;
-        }
+        let mut sum_ng1v1 = 0;
+        let mut sum_rk1v1 = 0;
+        let mut sum_ng5v5 = 0;
+        let mut sum_rk5v5 = 0;
+        
+            for user in &self.users {
+                sum_ng1v1 += user.borrow().ng1v1;
+                sum_rk1v1 += user.borrow().rk1v1;
+                sum_ng5v5 += user.borrow().ng5v5;
+                sum_rk5v5 += user.borrow().rk5v5;
+            }
+            if self.users.len() > 0 {
+                self.avg_ng1v1 = sum_ng1v1/self.users.len() as i16;
+                self.avg_rk1v1 = sum_rk1v1/self.users.len() as i16;
+                self.avg_ng5v5 = sum_ng5v5/self.users.len() as i16;
+                self.avg_rk5v5 = sum_rk5v5/self.users.len() as i16;
+            }
     }
 
     pub fn add_user(&mut self, user: Rc<RefCell<User>>) {
@@ -136,8 +149,11 @@ pub struct FightCheck {
 pub struct FightGroup {
     pub rooms: Vec<Rc<RefCell<RoomData>>>,
     pub user_count: i16,
-    pub avg_ng: i16,
-    pub avg_rk: i16,
+    pub avg_ng1v1: i16,
+    pub avg_rk1v1: i16,
+    pub avg_ng5v5: i16,
+    pub avg_rk5v5: i16,
+    pub mode: String,
     pub checks: Vec<FightCheck>,
     pub rids: Vec<u32>,
     pub game_status: u16,
@@ -199,17 +215,25 @@ impl FightGroup {
     }
 
     pub fn update_avg(&mut self) {
-        let mut sum_ng: i32 = 0;
-        let mut sum_rk: i32 = 0;
+        let mut sum_ng1v1: i32 = 0;
+        let mut sum_rk1v1: i32 = 0;
+        let mut sum_ng5v5: i32 = 0;
+        let mut sum_rk5v5: i32 = 0;
+        
         self.user_count = 0;
         for room in &self.rooms {
-            sum_ng += room.borrow().avg_ng as i32 * room.borrow().users.len() as i32;
-            sum_rk += room.borrow().avg_rk as i32 * room.borrow().users.len() as i32;
+            sum_ng1v1 += room.borrow().avg_ng1v1 as i32 * room.borrow().users.len() as i32;
+            sum_rk1v1 += room.borrow().avg_rk1v1 as i32 * room.borrow().users.len() as i32;
+            sum_ng5v5 += room.borrow().avg_ng5v5 as i32 * room.borrow().users.len() as i32;
+            sum_rk5v5 += room.borrow().avg_rk5v5 as i32 * room.borrow().users.len() as i32;
+            
             self.user_count += room.borrow().users.len() as i16;
         }
         if self.user_count > 0 {
-            self.avg_ng = (sum_ng/self.user_count as i32) as i16;
-            self.avg_rk = (sum_rk/self.user_count as i32) as i16;
+            self.avg_ng1v1 = (sum_ng1v1/self.user_count as i32) as i16;
+            self.avg_rk1v1 = (sum_rk1v1/self.user_count as i32) as i16;
+            self.avg_ng5v5 = (sum_ng5v5/self.user_count as i32) as i16;
+            self.avg_rk5v5 = (sum_rk5v5/self.user_count as i32) as i16;
         }
     }
 
@@ -284,6 +308,7 @@ pub struct FightGame {
     pub room_names: Vec<String>,
     pub user_names: Vec<String>,
     pub game_id: u32,
+    pub mode: String,
     pub user_count: u16,
     pub winteam: i16,
     pub game_status: u16,

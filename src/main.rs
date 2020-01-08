@@ -217,11 +217,10 @@ fn main() -> std::result::Result<(), Error> {
     
     //let mut QueueSender: Sender<QueueData>;
     let mut sender1: Sender<SqlData> = event_room::HandleSqlRequest(pool.clone())?;
-    let (mut sender, mut QueueSender): (Sender<RoomEventData>, Sender<QueueData>) = event_room::init(tx.clone(), sender1.clone(), pool.clone(), None, isBackup)?;
+    let mut sender: Sender<RoomEventData> = event_room::init(tx.clone(), sender1.clone(), pool.clone(), isBackup)?;
     let update = tick(Duration::from_millis(500));
     let mut is_live = true;
     let mut sender = sender.clone();
-    let mut QueueSender = QueueSender.clone();
     
     loop {
         use rumqtt::Notification::Publish;
@@ -245,13 +244,12 @@ fn main() -> std::result::Result<(), Error> {
                 if !is_live{
                     println!("Reconnect!");
                     
-                    let (mut sender1, mut QueueSender1): (Sender<RoomEventData>, Sender<QueueData>) = event_room::init(tx.clone(), sender1.clone(), pool.clone(), Some(QueueSender.clone()), isBackup)?;
+                    let mut sender1: Sender<RoomEventData> = event_room::init(tx.clone(), sender1.clone(), pool.clone(), isBackup)?;
                     sender = sender1.clone();
-                    QueueSender = QueueSender1.clone();
+                    
                     
                     thread::sleep(Duration::from_millis(2000));
                     
-                    println!("Refresh tx len: {}, queue len: {}", sender.len(), QueueSender.len());
                 }
                 let handle = || -> Result<(), Error> {
                     
