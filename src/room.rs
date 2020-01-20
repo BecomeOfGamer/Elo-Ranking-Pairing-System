@@ -47,18 +47,18 @@ impl RoomData {
         let mut sum_ng5v5 = 0;
         let mut sum_rk5v5 = 0;
         
-            for user in &self.users {
-                sum_ng1v1 += user.borrow().ng1v1;
-                sum_rk1v1 += user.borrow().rk1v1;
-                sum_ng5v5 += user.borrow().ng5v5;
-                sum_rk5v5 += user.borrow().rk5v5;
-            }
-            if self.users.len() > 0 {
-                self.avg_ng1v1 = sum_ng1v1/self.users.len() as i16;
-                self.avg_rk1v1 = sum_rk1v1/self.users.len() as i16;
-                self.avg_ng5v5 = sum_ng5v5/self.users.len() as i16;
-                self.avg_rk5v5 = sum_rk5v5/self.users.len() as i16;
-            }
+        for user in &self.users {
+            sum_ng1v1 += user.borrow().ng1v1;
+            sum_rk1v1 += user.borrow().rk1v1;
+            sum_ng5v5 += user.borrow().ng5v5;
+            sum_rk5v5 += user.borrow().rk5v5;
+        }
+        if self.users.len() > 0 {
+            self.avg_ng1v1 = sum_ng1v1/self.users.len() as i16;
+            self.avg_rk1v1 = sum_rk1v1/self.users.len() as i16;
+            self.avg_ng5v5 = sum_ng5v5/self.users.len() as i16 + 50 * (self.users.len() as i16 - 1);
+            self.avg_rk5v5 = sum_rk5v5/self.users.len() as i16 + 50 * (self.users.len() as i16 - 1);
+        }
     }
 
     pub fn add_user(&mut self, user: Rc<RefCell<User>>) {

@@ -46,7 +46,7 @@ struct Config {
     game_mode: Option<Vec<GameMode>>,
 }
 
-const TEAM_SIZE: i16 = 1;
+const TEAM_SIZE: i16 = 5;
 const MATCH_SIZE: usize = 2;
 const SCORE_INTERVAL: i16 = 100;
 const BLOCK_RECENT_PLAYER_OF_GAMES: usize = 2;
@@ -292,6 +292,7 @@ pub struct ReadyGroupData {
     pub user_name: Vec<String>,
     pub gid: u32,
     pub rid: Vec<u32>,
+    pub max_room_len: i16,
     pub user_len: i16,
     pub avg_ng1v1: i16,
     pub avg_rk1v1: i16,
@@ -712,112 +713,122 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                         }
                         //println!("Sort Time: {:?}",Instant::now().duration_since(new_now));
                         let mut new_now1 = Instant::now();
-                        for (k, v) in &mut QueueRoom {
-                            let mut block: bool = false;
-                            
-                            for u in &v.borrow_mut().user_name {
-                                if g.blacklist.contains(u) || g.block.contains(u){
-                                    block = true;
-                                    break;
+                        for i in 1..team_size+1 {
+                            for (k, v) in &mut QueueRoom {
+                                if v.borrow().user_len > i {
+                                    continue
                                 }
-                            }
-                            for u in &g.user_name {
-                                if v.borrow().blacklist.contains(&u) || v.borrow().block.contains(&u){
-                                    block = true;
-                                    break;
+                                let mut block: bool = false;
+                                
+                                for u in &v.borrow_mut().user_name {
+                                    if g.blacklist.contains(u) || g.block.contains(u){
+                                        block = true;
+                                        break;
+                                    }
                                 }
-                            }
-                            if block {
-                                continue;
-                            }
-                            let mut group_score = 0;
-                            if mode == "ng1p2t" {
-                                group_score = g.avg_ng1v1;
-                            } else if mode == "rk1p2t" {
-                                group_score = g.avg_rk1v1;
-                            } else if mode == "ng5p2t" {
-                                group_score = g.avg_ng5v5;
-                            } else if mode == "rk5p2t" {
-                                group_score = g.avg_rk5v5;
-                            }
-
-                            let mut room_score = 0;
-                            if mode == "ng1p2t" {
-                                room_score = v.borrow().avg_ng1v1;
-                            } else if mode == "rk1p2t" {
-                                room_score = v.borrow().avg_rk1v1;
-                            } else if mode == "ng5p2t" {
-                                room_score = v.borrow().avg_ng5v5;
-                            } else if mode == "rk5p2t" {
-                                room_score = v.borrow().avg_rk5v5;
-                            }
-
-                            if g.user_len > 0 && g.user_len < team_size && (group_score + v.borrow().queue_cnt*SCORE_INTERVAL) < room_score {
-                                for r in g.rid {
-                                    id.push(r);
+                                for u in &g.user_name {
+                                    if v.borrow().blacklist.contains(&u) || v.borrow().block.contains(&u){
+                                        block = true;
+                                        break;
+                                    }
                                 }
-                                g = Default::default();
-                                g.rid.push(v.borrow().rid);
-                                g.block = [g.block.as_slice(), v.borrow().block.clone().as_slice()].concat();
-                                g.blacklist = [g.blacklist.as_slice(), v.borrow().blacklist.clone().as_slice()].concat();
-                                g.user_name = [g.user_name.as_slice(), v.borrow().user_name.as_slice()].concat();
-                               
-                                let mut ng = (group_score * g.user_len + room_score * v.borrow().user_len) as i16 / (g.user_len + v.borrow().user_len) as i16;
+                                if block {
+                                    continue;
+                                }
+                                let mut group_score = 0;
                                 if mode == "ng1p2t" {
-                                    g.avg_ng1v1 = ng;
+                                    group_score = g.avg_ng1v1;
                                 } else if mode == "rk1p2t" {
-                                    g.avg_rk1v1 = ng;
+                                    group_score = g.avg_rk1v1;
                                 } else if mode == "ng5p2t" {
-                                    g.avg_ng5v5 = ng;
+                                    group_score = g.avg_ng5v5;
                                 } else if mode == "rk5p2t" {
-                                    g.avg_rk5v5 = ng;
+                                    group_score = g.avg_rk5v5;
                                 }
-                                g.user_len += v.borrow().user_len;
-                                v.borrow_mut().ready = 1;
-                                v.borrow_mut().gid = group_id + 1;
-                                v.borrow_mut().queue_cnt += 1;
-                                
-                            }
 
-                            if v.borrow().ready == 0 &&
-                                v.borrow().user_len as i16 + g.user_len <= team_size {
-                                
-                                let Difference: i16 = i16::abs(room_score - group_score);
-                                if group_score == 0 || Difference <= SCORE_INTERVAL * v.borrow().queue_cnt {
+                                let mut room_score = 0;
+                                if mode == "ng1p2t" {
+                                    room_score = v.borrow().avg_ng1v1;
+                                } else if mode == "rk1p2t" {
+                                    room_score = v.borrow().avg_rk1v1;
+                                } else if mode == "ng5p2t" {
+                                    room_score = v.borrow().avg_ng5v5;
+                                } else if mode == "rk5p2t" {
+                                    room_score = v.borrow().avg_rk5v5;
+                                }
+
+                                if g.user_len > 0 && g.user_len < team_size && (group_score + v.borrow().queue_cnt*SCORE_INTERVAL) < room_score {
+                                    for r in g.rid {
+                                        id.push(r);
+                                    }
+                                    g = Default::default();
                                     g.rid.push(v.borrow().rid);
+                                    g.max_room_len = v.borrow().user_len.clone();
                                     g.block = [g.block.as_slice(), v.borrow().block.clone().as_slice()].concat();
+                                    g.blacklist = [g.blacklist.as_slice(), v.borrow().blacklist.clone().as_slice()].concat();
                                     g.user_name = [g.user_name.as_slice(), v.borrow().user_name.as_slice()].concat();
-                                    
-                                    let mut score = (group_score * g.user_len + room_score * v.borrow().user_len) as i16 / (g.user_len + v.borrow().user_len) as i16;
+                                
+                                    let mut ng = (group_score * g.user_len + room_score * v.borrow().user_len) as i16 / (g.user_len + v.borrow().user_len) as i16;
                                     if mode == "ng1p2t" {
-                                        g.avg_ng1v1 = score;
+                                        g.avg_ng1v1 = ng;
                                     } else if mode == "rk1p2t" {
-                                        g.avg_rk1v1 = score;
+                                        g.avg_rk1v1 = ng;
                                     } else if mode == "ng5p2t" {
-                                        g.avg_ng5v5 = score;
+                                        g.avg_ng5v5 = ng;
                                     } else if mode == "rk5p2t" {
-                                        g.avg_rk5v5 = score;
+                                        g.avg_rk5v5 = ng;
                                     }
                                     g.user_len += v.borrow().user_len;
                                     v.borrow_mut().ready = 1;
                                     v.borrow_mut().gid = group_id + 1;
-                                }
-                                else {
                                     v.borrow_mut().queue_cnt += 1;
+                                    
                                 }
-                            }
-                            if g.user_len == team_size {
-                                //println!("match team_size!");
-                                group_id += 1;
-                                //info!("new group_id: {}", group_id);
-                                g.gid = group_id;
-                                
-                                g.queue_cnt = 1;
-                                ReadyGroups.insert(group_id, Rc::new(RefCell::new(g.clone())));
-                                
-                                g = Default::default();
-                            }
 
+                                if v.borrow().ready == 0 &&
+                                    v.borrow().user_len as i16 + g.user_len <= team_size {
+                                    
+                                    let Difference: i16 = i16::abs(room_score - group_score);
+                                    if group_score == 0 || Difference <= SCORE_INTERVAL * v.borrow().queue_cnt {
+                                        g.rid.push(v.borrow().rid);
+                                        g.block = [g.block.as_slice(), v.borrow().block.clone().as_slice()].concat();
+                                        g.user_name = [g.user_name.as_slice(), v.borrow().user_name.as_slice()].concat();
+                                        
+                                        let mut score = (group_score * g.user_len + room_score * v.borrow().user_len) as i16 / (g.user_len + v.borrow().user_len) as i16;
+                                        if mode == "ng1p2t" {
+                                            g.avg_ng1v1 = score;
+                                        } else if mode == "rk1p2t" {
+                                            g.avg_rk1v1 = score;
+                                        } else if mode == "ng5p2t" {
+                                            g.avg_ng5v5 = score;
+                                        } else if mode == "rk5p2t" {
+                                            g.avg_rk5v5 = score;
+                                        }
+                                        if (g.max_room_len < v.borrow().user_len) {
+                                            g.max_room_len = v.borrow().user_len.clone()
+                                        }
+                                        g.user_len += v.borrow().user_len;
+                                        v.borrow_mut().ready = 1;
+                                        v.borrow_mut().gid = group_id + 1;
+                                    }
+                                    else {
+                                        v.borrow_mut().queue_cnt += 1;
+                                    }
+                                }
+                                if g.user_len == team_size {
+                                   
+                                    //println!("match team_size!");
+                                    group_id += 1;
+                                    //info!("new group_id: {}", group_id);
+                                    g.gid = group_id;
+                                    
+                                    g.queue_cnt = 1;
+                                    ReadyGroups.insert(group_id, Rc::new(RefCell::new(g.clone())));
+                                    
+                                    g = Default::default();
+                                }
+
+                            }
                         }
                         //println!("Time 2: {:?}",Instant::now().duration_since(new_now1));
                         if g.user_len < team_size {
@@ -843,8 +854,13 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                         //let mut prestart = false;
                         let mut total_score: i16 = 0;
                         let mut rm_ids: Vec<u32> = vec![];
+                        let mut tq: Vec<Rc<RefCell<ReadyGroupData>>> = vec![];
+                        tq = ReadyGroups.iter().map(|x|Rc::clone(x.1)).collect();
                         //println!("ReadyGroup!! {}", ReadyGroups.len());
                         let mut new_now2 = Instant::now();
+                        tq.sort_by_key(|x| x.borrow().max_room_len);
+                        tq.iter().rev();
+                        
                         for (id, rg) in &mut ReadyGroups {
                             
                             let mut block: bool = false;
@@ -933,11 +949,11 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                         if let Ok(d) = d {
                             match d {
                                 QueueData::UpdateRoom(x) => {
-                                    //println!("rid: {}", x.rid);
+                                    //println!("mode: {}, rid: {}",mode, x.rid);
                                     QueueRoom.insert(x.rid.clone(), Rc::new(RefCell::new(x.clone())));
                                 }
                                 QueueData::RemoveRoom(x) => {
-                                    //println!("Remove Room!!!  x.rid: {}", &x.rid);
+                                    //println!("Remove Room!!! mode, {}, x.rid: {}",mode, &x.rid);
                                     let r = QueueRoom.get(&x.rid);
                                     if let Some(r) = r {
                                         //println!("Start Remove!! gid: {}", &r.borrow().gid);
@@ -996,7 +1012,8 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
     };
     let config: Config = toml::from_str(&str_val).unwrap();
     
-    
+    let score_interval = config.game_setting.clone().unwrap().SCORE_INTERVAL.unwrap();
+    let block_recent_player_of_games = config.game_setting.clone().unwrap().BLOCK_RECENT_PLAYER_OF_GAMES.unwrap();
     
     for x in config.game_mode.unwrap() {
         let mut tx1 = HandleQueueRequest(msgtx.clone(), tx.clone(), x.MODE.clone().unwrap(), x.TEAM_SIZE.unwrap(), x.MATCH_SIZE.unwrap())?;
@@ -1371,6 +1388,13 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                     users.push(u.borrow().id.clone())
                                                 }
                                             }
+                                            for room in & g.borrow().room_names {
+                                                let r = TotalRoom.get(&get_rid_by_id(&room, &TotalUsers));
+                                                if let Some(r) = r {
+                                                    println!("room id: {}, users: {}", r.borrow().rid, r.borrow().users.len());
+                                                    r.borrow_mut().ready = 0;
+                                                }
+                                            }
                                         for u in &g.borrow().user_names {
                                             let u = get_user(&u, &TotalUsers);
                                             match u {
@@ -1638,6 +1662,8 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                                 if let Some(t1) = t1 {
                                                                     t1.send(QueueData::UpdateRoom(data));
                                                                 }
+                                                            } else {
+                                                                r.borrow_mut().ready = 0;
                                                             }
                                                         }
                                                         ReadyGroups.remove(&gid);
@@ -1735,6 +1761,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                     
                                                 }
                                                 y.borrow_mut().mode = x.mode.clone();
+                                                y.borrow_mut().ready = 1;
                                                 y.borrow_mut().update_avg();
                                                 let mut data = QueueRoomData {
                                                     user_name: users.clone(),
@@ -1792,8 +1819,10 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                         let gr = ReadyGroups.remove(&u.borrow().gid);
                                         let r = TotalRoom.get(&u.borrow().rid);
                                         //println!("Totalroom rid: {}", &u.borrow().rid);
-                                        if let Some(gr) = gr {
-                                            let t1 = QueueSender.get(&gr.borrow().mode);
+                                        if let Some(r) = r {
+                                            r.borrow_mut().ready = 0;
+                                            let t1 = QueueSender.get(&r.borrow().mode);
+                                            //println!("mode: {}", &r.borrow().mode);
                                             if let Some(t1) = t1 {
                                                 t1.send(QueueData::RemoveRoom(RemoveRoomData{rid: u.borrow().rid}));
                                             }
