@@ -2,6 +2,7 @@ use serde_derive::{Serialize, Deserialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::{HashMap, BTreeMap};
+use std::time::{Duration, Instant};
 use crate::msg::*;
 use crossbeam_channel::{bounded, tick, Sender, Receiver, select};
 use failure::Error;
@@ -30,6 +31,7 @@ pub struct Replay {
     pub name: String,
     pub url: String,
     pub address: String,
+    pub count: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -69,12 +71,28 @@ pub struct UserEquInfo {
     pub option3lv: u8,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct BanTime {
+    pub from: Instant,
+    pub long: Duration,
+}
+
+impl Default for BanTime {
+    fn default() -> BanTime{
+        BanTime{
+            from: Instant::now(),
+            long: Duration::new(0, 0),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct User {
     pub id: String,
     pub name: String,
     pub hero: String,
     pub honor: i32,
+    pub ban: BanTime,
     pub info: PlayerInfo,
     pub ng1v1: ScoreInfo,
     pub ng5v5: ScoreInfo,
@@ -242,6 +260,7 @@ pub struct FightCheck {
 #[derive(Clone, Debug, Default)]
 pub struct FightGroup {
     pub rooms: Vec<Rc<RefCell<RoomData>>>,
+    pub user_order: Vec<Rc<RefCell<User>>>,
     pub user_count: i16,
     pub avg_ng1v1: i16,
     pub avg_rk1v1: i16,
@@ -287,6 +306,29 @@ impl FightGroup {
         }
         false
     }
+    pub fn update_group_order(&mut self, mode: String) {
+        self.user_order.clear();
+        for r in &self.rooms {
+            for u in &r.borrow().users {
+                self.user_order.push(u.clone());
+            }
+        }
+        if mode == "rk1p2t" {
+            self.user_order.sort_by_key(|x| x.borrow().rk1v1.score);
+        } else if mode == "rk5p2t" {
+            self.user_order.sort_by_key(|x| x.borrow().rk5v5.score);
+        }
+    }
+
+    pub fn get_group_order(&mut self, mode: String) -> Vec<String> {
+        self.update_group_order(mode);
+        let mut res: Vec<String> = vec![];
+        for u in &self.user_order {
+            res.push(u.borrow().id.clone());
+        }
+        res
+    }
+
     pub fn leave_room(&mut self) -> bool {
         for r in &mut self.rooms {
             r.borrow_mut().leave_room();
@@ -407,6 +449,13 @@ pub struct FightGame {
     pub user_names: Vec<String>,
     pub game_id: u32,
     pub mode: String,
+    pub times: u8,
+    pub order: u8,
+    pub send: bool,
+    pub ban: Vec<String>,
+    pub team1: Vec<String>,
+    pub team2: Vec<String>,
+    pub done: bool,
     pub user_count: u16,
     pub winteam: Vec<String>,
     pub loseteam: Vec<String>,
@@ -425,6 +474,7 @@ pub enum PrestartStatus {
 }
 
 impl FightGame {
+
     pub fn update_names(&mut self) {
         self.room_names.clear();
         self.user_names.clear();

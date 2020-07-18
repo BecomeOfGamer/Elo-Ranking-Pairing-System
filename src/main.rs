@@ -185,10 +185,23 @@ fn main() -> std::result::Result<(), Error> {
     // Server message
     mqtt_client.subscribe("server/+/res/heartbeat", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("server/+/send/login", QoS::AtMostOnce).unwrap();
+
+
+    mqtt_client.subscribe("manager/+/send/equ_test", QoS::AtMostOnce).unwrap();
+    // User Equipment
     mqtt_client.subscribe("manager/+/send/insert_equ", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("manager/+/send/modify_userequ", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("manager/+/send/delete_userequ", QoS::AtMostOnce).unwrap();
+
+    // Total Equipment
     mqtt_client.subscribe("manager/+/send/modify_equ", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("manager/+/send/new_equ", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("manager/+/send/delete_equ", QoS::AtMostOnce).unwrap();
+
+    // Total Option
+    mqtt_client.subscribe("manager/+/send/modify_option", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("manager/+/send/new_option", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("manager/+/send/delete_option", QoS::AtMostOnce).unwrap();
     
 
     // Client message
@@ -198,6 +211,10 @@ fn main() -> std::result::Result<(), Error> {
     mqtt_client.subscribe("member/+/send/status", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("member/+/send/reconnect", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("member/+/send/replay", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("member/+/send/add_black_list", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("member/+/send/query_black_list", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("member/+/send/remove_black_list", QoS::AtMostOnce).unwrap();
+
 
     mqtt_client.subscribe("room/+/send/create", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("room/+/send/close", QoS::AtMostOnce).unwrap();
@@ -220,6 +237,10 @@ fn main() -> std::result::Result<(), Error> {
     mqtt_client.subscribe("game/+/send/leave", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("game/+/send/exit", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("game/+/send/upload", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("game/+/send/result_upload", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("game/+/send/ban", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("game/+/send/choose", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("game/+/send/rankgame_status", QoS::AtMostOnce).unwrap();
     
     let mut isServerLive = true;
     
@@ -298,31 +319,82 @@ fn main() -> std::result::Result<(), Error> {
     });
     
 
-    let relogin = Regex::new(r"(\w+)/(\w+)/send/login").unwrap();
-    let relogout = Regex::new(r"\w+/(\w+)/send/logout").unwrap();
-    let recreate = Regex::new(r"\w+/(\w+)/send/create").unwrap();
-    let reclose = Regex::new(r"\w+/(\w+)/send/close").unwrap();
-    let restart_queue = Regex::new(r"\w+/(\w+)/send/start_queue").unwrap();
-    let recancel_queue = Regex::new(r"\w+/(\w+)/send/cancel_queue").unwrap();
-    let represtart_get = Regex::new(r"\w+/(\w+)/send/prestart_get").unwrap();
-    let represtart = Regex::new(r"\w+/(\w+)/send/prestart").unwrap();
-    let reinvite = Regex::new(r"\w+/(\w+)/send/invite").unwrap();
-    let rejoin = Regex::new(r"\w+/(\w+)/send/join").unwrap();
+    let relogin = Regex::new(r"(\w+)/(((\w+)(\-)*)+)/send/login").unwrap();
+    let relogout = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/logout").unwrap();
+    let readd_black_list = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/add_black_list").unwrap();
+    let requery_black_list = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/query_black_list").unwrap();
+    let reremove_black_list = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/remove_black_list").unwrap();
+    let recreate = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/create").unwrap();
+    let reclose = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/close").unwrap();
+    let restart_queue = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/start_queue").unwrap();
+    let recancel_queue = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/cancel_queue").unwrap();
+    let represtart_get = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/prestart_get").unwrap();
+    let represtart = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/prestart").unwrap();
+    let reinvite = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/invite").unwrap();
+    let rejoin = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/join").unwrap();
     let reset = Regex::new(r"reset").unwrap();
-    let rechoosehero = Regex::new(r"\w+/(\w+)/send/choose_hero").unwrap();
-    let releave = Regex::new(r"\w+/(\w+)/send/leave").unwrap();
-    let restart_game = Regex::new(r"\w+/(\w+)/send/start_game").unwrap();
-    let regame_over = Regex::new(r"\w+/(\w+)/send/game_over").unwrap();
-    let regame_info = Regex::new(r"\w+/(\w+)/send/game_info").unwrap();
-    let regame_close = Regex::new(r"\w+/(\w+)/send/game_close").unwrap();
-    let restatus = Regex::new(r"\w+/(\w+)/send/status").unwrap();
-    let rereconnect = Regex::new(r"\w+/(\w+)/send/reconnect").unwrap();
-    let regetRP = Regex::new(r"\w+/(\w+)/send/replay").unwrap();
-    let reuploadRP = Regex::new(r"\w+/(\w+)/send/upload").unwrap();
-    let reinsert_equ = Regex::new(r"\w+/(\w+)/send/insert_equ").unwrap();
-    let remodify_equ = Regex::new(r"\w+/(\w+)/send/modify_equ").unwrap();
-    let recreate_equ = Regex::new(r"\w+/(\w+)/send/new_equ").unwrap();
-    let redelete_equ = Regex::new(r"\w+/(\w+)/send/delete_equ").unwrap();
+    let rechoosehero = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/choose_hero").unwrap();
+    let releave = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/leave").unwrap();
+    let restart_game = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/start_game").unwrap();
+    let regame_over = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/game_over").unwrap();
+    let regame_info = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/game_info").unwrap();
+    let regame_close = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/game_close").unwrap();
+    let restatus = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/status").unwrap();
+    let rereconnect = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/reconnect").unwrap();
+    let regetRP = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/replay").unwrap();
+    let reuploadRP = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/upload").unwrap();
+    let reuploadRPRes = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/result_upload").unwrap();
+    let reban = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/ban").unwrap();
+    let rechoose = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/choose").unwrap();
+    let rerankgame_status = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/rankgame_status").unwrap();
+
+    let reequ_test = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/equ_test").unwrap();
+    // User Equipment
+    let reinsert_equ = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/insert_equ").unwrap();
+    let remodify_userequ = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/modify_userequ").unwrap();
+    let redelete_userequ = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/delete_userequ").unwrap();
+    
+    // Total Equipment
+    let remodify_equ = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/modify_equ").unwrap();
+    let recreate_equ = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/new_equ").unwrap();
+    let redelete_equ = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/delete_equ").unwrap();
+
+    // Total Option
+    let remodify_option = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/modify_option").unwrap();
+    let renew_option = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/new_option").unwrap();
+    let redelete_option = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/delete_option").unwrap();
+    
+    // let relogin = Regex::new(r"(\w+)/(\w+)/send/login").unwrap();
+    // let relogout = Regex::new(r"\w+/(\w+)/send/logout").unwrap();
+    // let recreate = Regex::new(r"\w+/(\w+)/send/create").unwrap();
+    // let reclose = Regex::new(r"\w+/(\w+)/send/close").unwrap();
+    // let restart_queue = Regex::new(r"\w+/(\w+)/send/start_queue").unwrap();
+    // let recancel_queue = Regex::new(r"\w+/(\w+)/send/cancel_queue").unwrap();
+    // let represtart_get = Regex::new(r"\w+/(\w+)/send/prestart_get").unwrap();
+    // let represtart = Regex::new(r"\w+/(\w+)/send/prestart").unwrap();
+    // let reinvite = Regex::new(r"\w+/(\w+)/send/invite").unwrap();
+    // let rejoin = Regex::new(r"\w+/(\w+)/send/join").unwrap();
+    // let reset = Regex::new(r"reset").unwrap();
+    // let rechoosehero = Regex::new(r"\w+/(\w+)/send/choose_hero").unwrap();
+    // let releave = Regex::new(r"\w+/(\w+)/send/leave").unwrap();
+    // let restart_game = Regex::new(r"\w+/(\w+)/send/start_game").unwrap();
+    // let regame_over = Regex::new(r"\w+/(\w+)/send/game_over").unwrap();
+    // let regame_info = Regex::new(r"\w+/(\w+)/send/game_info").unwrap();
+    // let regame_close = Regex::new(r"\w+/(\w+)/send/game_close").unwrap();
+    // let restatus = Regex::new(r"\w+/(\w+)/send/status").unwrap();
+    // let rereconnect = Regex::new(r"\w+/(\w+)/send/reconnect").unwrap();
+    // let regetRP = Regex::new(r"\w+/(\w+)/send/replay").unwrap();
+    // let reuploadRP = Regex::new(r"\w+/(\w+)/send/upload").unwrap();
+    
+    // // User Equipment
+    // let reinsert_equ = Regex::new(r"\w+/(\w+)/send/insert_equ").unwrap();
+    // let remodify_userequ = Regex::new(r"\w+/(\w+)/send/modify_userequ").unwrap();
+    // let redelete_userequ = Regex::new(r"\w+/(\w+)/send/delete_userequ").unwrap();
+    
+    // // Total Equipment
+    // let remodify_equ = Regex::new(r"\w+/(\w+)/send/modify_equ").unwrap();
+    // let recreate_equ = Regex::new(r"\w+/(\w+)/send/new_equ").unwrap();
+    // let redelete_equ = Regex::new(r"\w+/(\w+)/send/delete_equ").unwrap();
 
 
     //let mut QueueSender: Sender<QueueData>;
@@ -482,16 +554,43 @@ fn main() -> std::result::Result<(), Error> {
                                     let userid = cap[1].to_string();
                                     //info!("reconnect: userid: {} json: {:?}", userid, v);
                                     event_room::reconnect(userid, v, sender.clone())?;
+                                } else if reban.is_match(topic_name) {
+                                    println!("Rank Ban");
+                                    let cap = reban.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    //info!("reconnect: userid: {} json: {:?}", userid, v);
+                                    event_room::ban(userid, v, sender.clone())?;
+                                } else if rechoose.is_match(topic_name) {
+                                    println!("Rank Choose");
+                                    let cap = rechoose.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    //info!("reconnect: userid: {} json: {:?}", userid, v);
+                                    event_room::choose(userid, v, sender.clone())?;
+                                } else if rerankgame_status.is_match(topic_name) {
+                                    println!("Rank Status");
+                                    let cap = rerankgame_status.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    //info!("reconnect: userid: {} json: {:?}", userid, v);
+                                    event_room::rankgame_status(userid, v, sender.clone())?;
                                 } else if regetRP.is_match(topic_name) {
                                     let cap = regetRP.captures(topic_name).unwrap();
                                     let userid = cap[1].to_string();
                                     //info!("reconnect: userid: {} json: {:?}", userid, v);
                                     event_room::getRP(userid, v, sender.clone())?;
                                 } else if reuploadRP.is_match(topic_name) {
+                                    println!("Upload Replay");
+                                    
                                     let cap = reuploadRP.captures(topic_name).unwrap();
                                     let userid = cap[1].to_string();
                                     //info!("reconnect: userid: {} json: {:?}", userid, v);
                                     event_room::uploadRP(userid, v, sender.clone())?;
+                                } else if reuploadRPRes.is_match(topic_name) {
+                                    println!("Upload Res");
+                                    
+                                    let cap = reuploadRPRes.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    //info!("reconnect: userid: {} json: {:?}", userid, v);
+                                    event_room::uploadRPRes(userid, v, sender.clone())?;
                                 } else if reinsert_equ.is_match(topic_name) {
                                     let cap = reinsert_equ.captures(topic_name).unwrap();
                                     let userid = cap[1].to_string();
@@ -512,6 +611,45 @@ fn main() -> std::result::Result<(), Error> {
                                     let userid = cap[1].to_string();
                                     //info!("reconnect: userid: {} json: {:?}", userid, v);
                                     event_room::delete_equ(userid, v, sender.clone())?;
+                                } else if redelete_userequ.is_match(topic_name) {
+                                    let cap = redelete_userequ.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    event_room::delete_userequ(userid, v, sender.clone())?;
+                                } else if remodify_userequ.is_match(topic_name) {
+                                    let cap = remodify_userequ.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    event_room::modify_userequ(userid, v, sender.clone())?;
+                                } else if renew_option.is_match(topic_name) {
+                                    //println!("New Option");
+                                    let cap = renew_option.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    event_room::new_option(userid, v, sender.clone())?;
+                                } else if remodify_option.is_match(topic_name) {
+                                    //println!("Modify Option");
+                                    let cap = remodify_option.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    event_room::modify_option(userid, v, sender.clone())?;
+                                } else if redelete_option.is_match(topic_name) {
+                                    //println!("Delete Option");
+                                    let cap = redelete_option.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    event_room::delete_option(userid, v, sender.clone())?;
+                                } else if readd_black_list.is_match(topic_name) {
+                                    let cap = readd_black_list.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    event_room::add_black_list(userid, v, sender.clone())?;
+                                } else if requery_black_list.is_match(topic_name) {
+                                    let cap = requery_black_list.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    event_room::query_black_list(userid, v, sender.clone())?;
+                                } else if reremove_black_list.is_match(topic_name) {
+                                    let cap = reremove_black_list.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    event_room::remove_black_list(userid, v, sender.clone())?;
+                                } else if reequ_test.is_match(topic_name) {
+                                    let cap = reequ_test.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    event_room::equ_test(userid, v, sender.clone())?;
                                 }
                             } else {
                                 warn!("Json Parser error");
