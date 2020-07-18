@@ -1,0 +1,6 @@
+[server_setting]
+SERVER_IP = "114.32.129.195"
+PORT = "1883"
+SQL_IP = "127.0.0.1"
+MYSQL_ACCOUNT = "erps"
+MYSQL_PASSWORD = "erpsgogo"
