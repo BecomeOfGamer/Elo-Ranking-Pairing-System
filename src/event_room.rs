@@ -2289,6 +2289,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                 //     TotalGameServer[1].borrow_mut().now_server += 1;
                                 //     TotalGameServer[1].borrow_mut().update();
                                 // } else {
+                                if TotalGameServer.len() > 0 {
                                     msgtx.try_send(MqttMsg{topic:format!("server/{}/res/start_game", TotalGameServer[0].borrow().name.clone()), 
                                     msg: format!(r#"{{"game":{}, "port":"{}"}}"#, group.borrow().game_id, group.borrow().game_port)})?;
 
@@ -2299,7 +2300,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                     
                                     TotalGameServer[0].borrow_mut().now_server += 1;
                                     TotalGameServer[0].borrow_mut().update();
-                                // }
+                                }
                             } else {
                                 
                                 msgtx.try_send(MqttMsg{topic:format!("server/{}/res/start_game", group.borrow().server_name.clone()), 
