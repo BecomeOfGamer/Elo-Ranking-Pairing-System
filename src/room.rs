@@ -1,23 +1,136 @@
 use serde_derive::{Serialize, Deserialize};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::collections::{HashMap, BTreeMap};
+use std::time::{Duration, Instant};
 use crate::msg::*;
 use crossbeam_channel::{bounded, tick, Sender, Receiver, select};
 use failure::Error;
+use rust_decimal::Decimal;
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct GameServer {
+    pub name: String,
+    pub address: String,
+    pub max_user: u32,
+    pub now_user: u32,
+    pub max_server: u32,
+    pub now_server: u32,
+    pub utilization: i16,
+}
+
+impl GameServer{
+    pub fn update(&mut self) {
+        self.utilization = 100*self.now_server as i16/self.max_server as i16;
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Replay {
+    pub gameid: u32,
+    pub name: String,
+    pub url: String,
+    pub address: String,
+    pub count: u8,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Equipment {
+    pub equ_id: u32,
+    pub equ_name: String,
+    pub positive: String,
+    pub negative: String,
+    pub pvalue: Vec<f32>,
+    pub nvalue: Vec<f32>,
+    pub option_id: Vec<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct EquOption {
+    pub option_id: u32,
+    pub option_name: String,
+    pub special: bool,
+    pub exception: bool,
+    pub set_id: u32,
+    pub set_amount: u8,
+    pub option_weight: f32,
+    pub effect: Vec<f32>, 
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct UserEquInfo {
+    pub equ_id: u32,
+    pub rank: u8,
+    pub lv: u8,
+    pub lv5: u8,
+    pub option1: u32,
+    pub option2: u32,
+    pub option3: u32,
+    pub option1lv: u8,
+    pub option2lv: u8,
+    pub option3lv: u8,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BanTime {
+    pub from: Instant,
+    pub long: Duration,
+}
+
+impl Default for BanTime {
+    fn default() -> BanTime{
+        BanTime{
+            from: Instant::now(),
+            long: Duration::new(0, 0),
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct User {
     pub id: String,
     pub name: String,
     pub hero: String,
-    pub ng: i16,
-    pub rk: i16,
+    pub honor: i32,
+    pub ban: BanTime,
+    pub info: PlayerInfo,
+    pub ng1v1: ScoreInfo,
+    pub ng5v5: ScoreInfo,
+    pub rk1v1: ScoreInfo,
+    pub rk5v5: ScoreInfo,
     pub rid: u32,
     pub gid: u32,
     pub game_id: u32,
     pub online: bool,
     pub start_prestart: bool,
     pub prestart_get: bool,
+    pub recent_users: Vec<Vec<String>>,
+    pub blacklist: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct PlayerInfo {
+    pub PlayerExp: u32,
+    pub PlayerLv: u32,
+    pub HeroExp: BTreeMap<String, Hero>,
+    pub Money: u32,
+    pub TotalCurrency: u32,
+    pub TotalEquip: Vec<UserEquInfo>,
+    pub HiddenRank: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct ScoreInfo {
+    pub score: i16,
+    pub WinCount: u32,
+    pub LoseCount: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Hero {
+    pub Hero_name: String,
+    pub Level: u32,
+    pub Exp: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -26,23 +139,37 @@ pub struct RoomData {
     pub users: Vec<Rc<RefCell<User>>>,
     pub master: String,
     pub last_master: String,
-    pub avg_ng: i16,
-    pub avg_rk: i16,
+    pub mode: String,
+    pub avg_ng1v1: i16,
+    pub avg_rk1v1: i16,
+    pub avg_ng5v5: i16,
+    pub avg_rk5v5: i16,
+    pub avg_honor: i32,
     pub ready: i8,
     pub queue_cnt: i16,
 }
 
 impl RoomData {
     pub fn update_avg(&mut self) {
-        let mut sum_ng = 0;
-        let mut sum_rk = 0;
+        let mut sum_ng1v1 = 0;
+        let mut sum_rk1v1 = 0;
+        let mut sum_ng5v5 = 0;
+        let mut sum_rk5v5 = 0;
+        let mut sum_honor = 0;
+        
         for user in &self.users {
-            sum_ng += user.borrow().ng;
-            sum_rk += user.borrow().rk;
+            sum_ng1v1 += user.borrow().ng1v1.score;
+            sum_rk1v1 += user.borrow().rk1v1.score;
+            sum_ng5v5 += user.borrow().ng5v5.score;
+            sum_rk5v5 += user.borrow().rk5v5.score;
+            sum_honor += user.borrow().honor;
         }
         if self.users.len() > 0 {
-            self.avg_ng = sum_ng/self.users.len() as i16;
-            self.avg_rk = sum_rk/self.users.len() as i16;
+            self.avg_ng1v1 = sum_ng1v1/self.users.len() as i16;
+            self.avg_rk1v1 = sum_rk1v1/self.users.len() as i16;
+            self.avg_ng5v5 = sum_ng5v5/self.users.len() as i16 + 50 * (self.users.len() as i16 - 1);
+            self.avg_rk5v5 = sum_rk5v5/self.users.len() as i16 + 50 * (self.users.len() as i16 - 1);
+            self.avg_honor = sum_honor/self.users.len() as i32;
         }
     }
 
@@ -133,9 +260,14 @@ pub struct FightCheck {
 #[derive(Clone, Debug, Default)]
 pub struct FightGroup {
     pub rooms: Vec<Rc<RefCell<RoomData>>>,
+    pub user_order: Vec<Rc<RefCell<User>>>,
     pub user_count: i16,
-    pub avg_ng: i16,
-    pub avg_rk: i16,
+    pub avg_ng1v1: i16,
+    pub avg_rk1v1: i16,
+    pub avg_ng5v5: i16,
+    pub avg_rk5v5: i16,
+    pub avg_honor: i32,
+    pub mode: String,
     pub checks: Vec<FightCheck>,
     pub rids: Vec<u32>,
     pub game_status: u16,
@@ -156,11 +288,11 @@ impl FightGroup {
         false
     }
 
-    pub fn get_users_id_hero(&self) -> Vec<(String, String, String)> {
-        let mut res: Vec<(String, String, String)> = vec![];
+    pub fn get_users_id_hero(&self) -> Vec<(String, String, String, Vec<UserEquInfo>)> {
+        let mut res: Vec<(String, String, String, Vec<UserEquInfo>)> = vec![];
         for r in &self.rooms {
             for u in &r.borrow().users {
-                res.push((u.borrow().id.clone(), u.borrow().name.clone(), u.borrow().hero.clone()));
+                res.push((u.borrow().id.clone(), u.borrow().name.clone(), u.borrow().hero.clone(), u.borrow().info.TotalEquip.clone()));
             }
         }
         res
@@ -174,6 +306,29 @@ impl FightGroup {
         }
         false
     }
+    pub fn update_group_order(&mut self, mode: String) {
+        self.user_order.clear();
+        for r in &self.rooms {
+            for u in &r.borrow().users {
+                self.user_order.push(u.clone());
+            }
+        }
+        if mode == "rk1p2t" {
+            self.user_order.sort_by_key(|x| x.borrow().rk1v1.score);
+        } else if mode == "rk5p2t" {
+            self.user_order.sort_by_key(|x| x.borrow().rk5v5.score);
+        }
+    }
+
+    pub fn get_group_order(&mut self, mode: String) -> Vec<String> {
+        self.update_group_order(mode);
+        let mut res: Vec<String> = vec![];
+        for u in &self.user_order {
+            res.push(u.borrow().id.clone());
+        }
+        res
+    }
+
     pub fn leave_room(&mut self) -> bool {
         for r in &mut self.rooms {
             r.borrow_mut().leave_room();
@@ -197,17 +352,28 @@ impl FightGroup {
     }
 
     pub fn update_avg(&mut self) {
-        let mut sum_ng: i32 = 0;
-        let mut sum_rk: i32 = 0;
+        let mut sum_ng1v1: i32 = 0;
+        let mut sum_rk1v1: i32 = 0;
+        let mut sum_ng5v5: i32 = 0;
+        let mut sum_rk5v5: i32 = 0;
+        let mut sum_honor: i32 = 0;
+        
         self.user_count = 0;
         for room in &self.rooms {
-            sum_ng += room.borrow().avg_ng as i32 * room.borrow().users.len() as i32;
-            sum_rk += room.borrow().avg_rk as i32 * room.borrow().users.len() as i32;
+            sum_ng1v1 += room.borrow().avg_ng1v1 as i32 * room.borrow().users.len() as i32;
+            sum_rk1v1 += room.borrow().avg_rk1v1 as i32 * room.borrow().users.len() as i32;
+            sum_ng5v5 += room.borrow().avg_ng5v5 as i32 * room.borrow().users.len() as i32;
+            sum_rk5v5 += room.borrow().avg_rk5v5 as i32 * room.borrow().users.len() as i32;
+            sum_honor += room.borrow().avg_honor as i32 * room.borrow().users.len() as i32;
+            
             self.user_count += room.borrow().users.len() as i16;
         }
         if self.user_count > 0 {
-            self.avg_ng = (sum_ng/self.user_count as i32) as i16;
-            self.avg_rk = (sum_rk/self.user_count as i32) as i16;
+            self.avg_ng1v1 = (sum_ng1v1/self.user_count as i32) as i16;
+            self.avg_rk1v1 = (sum_rk1v1/self.user_count as i32) as i16;
+            self.avg_ng5v5 = (sum_ng5v5/self.user_count as i32) as i16;
+            self.avg_rk5v5 = (sum_rk5v5/self.user_count as i32) as i16;
+            self.avg_honor = (sum_honor/self.user_count as i32);
         }
     }
 
@@ -282,10 +448,22 @@ pub struct FightGame {
     pub room_names: Vec<String>,
     pub user_names: Vec<String>,
     pub game_id: u32,
+    pub mode: String,
+    pub times: u8,
+    pub order: u8,
+    pub send: bool,
+    pub ban: Vec<String>,
+    pub team1: Vec<String>,
+    pub team2: Vec<String>,
+    pub done: bool,
     pub user_count: u16,
-    pub winteam: i16,
+    pub winteam: Vec<String>,
+    pub loseteam: Vec<String>,
     pub game_status: u16,
     pub game_port: u16,
+    pub server_name: String,
+    pub game_start: bool,
+    pub server_notify: i8,
 }
 
 #[derive(PartialEq)]
@@ -296,6 +474,7 @@ pub enum PrestartStatus {
 }
 
 impl FightGame {
+
     pub fn update_names(&mut self) {
         self.room_names.clear();
         self.user_names.clear();

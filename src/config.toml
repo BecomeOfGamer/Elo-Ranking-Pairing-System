@@ -1,0 +1,28 @@
+[game_setting]
+SCORE_INTERVAL = 100
+HONOR_THRESHOLD = 1000
+BLOCK_RECENT_PLAYER_OF_GAMES = 0
+HERO = ["freyja", "isuna", "aros", "martin"]
+
+[[game_mode]]
+MODE = "ng1p2t"
+TEAM_SIZE = 1
+MATCH_SIZE = 2
+
+
+[[game_mode]]
+MODE = "rk1p2t"
+TEAM_SIZE = 2
+MATCH_SIZE = 2
+
+
+[[game_mode]]
+MODE = "ng5p2t"
+TEAM_SIZE = 4
+MATCH_SIZE = 2
+
+
+[[game_mode]]
+MODE = "rk5p2t"
+TEAM_SIZE = 5
+MATCH_SIZE = 2
