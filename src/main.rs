@@ -266,10 +266,34 @@ fn main() -> std::result::Result<(), Error> {
             //println!("mqtt_options {:#?}", mqtt_options);
             let update = tick(Duration::from_millis(100));
             let (mut mqtt_client, notifications) = MqttClient::start(mqtt_options.clone())?;
+            let mut msgs : Vec<MqttMsg> = vec![];
             loop {
                 select! {
                     recv(update) -> d => {
-
+                        let mut i: usize = 0;
+                        loop {
+                            if msgs.len() <= i {
+                                break;
+                            }
+                            let diff = msgs[i].time.duration_since(SystemTime::now());
+                            let mut difftime = 0;
+                            match diff {
+                                Ok(n) => { difftime = n.as_micros(); },
+                                Err(_) => {},
+                            }
+                            if difftime == 0 {
+                                let msg_res = mqtt_client.publish(msgs[i].topic.clone(), QoS::AtMostOnce, false, msgs[i].msg.clone());
+                                match msg_res {
+                                    Ok(_) =>{},
+                                    Err(x) => {
+                                        panic!("??? {}", x);
+                                    }
+                                }
+                                msgs.remove(i);
+                            } else {
+                                i += 1;
+                            }
+                        }
                     },
                     recv(rx1) -> d => {
                         let handle = || -> Result<(), Error> 
@@ -287,13 +311,17 @@ fn main() -> std::result::Result<(), Error> {
                                     Err(_) => {},
                                 }
                                 println!("difftime {}", difftime);
-                                if d.topic.len() > 2 && difftime == 0 {
-                                    let msg_res = mqtt_client.publish(d.topic, QoS::AtMostOnce, false, d.msg);
-                                    match msg_res {
-                                        Ok(_) =>{},
-                                        Err(x) => {
-                                            panic!("??? {}", x);
+                                if d.topic.len() > 2 {
+                                    if difftime == 0 {
+                                        let msg_res = mqtt_client.publish(d.topic, QoS::AtMostOnce, false, d.msg);
+                                        match msg_res {
+                                            Ok(_) =>{},
+                                            Err(x) => {
+                                                panic!("??? {}", x);
+                                            }
                                         }
+                                    } else {
+                                        msgs.push(d);
                                     }
                                 }
                             }
