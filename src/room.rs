@@ -229,7 +229,7 @@ impl RoomData {
         for user in &self.users {
             t.team.push(user.borrow().id.clone());
         }
-        msgtx.try_send(MqttMsg{topic:format!("room/{}/res/update", r), msg: serde_json::to_string(&t).unwrap()})?;
+        msgtx.try_send(MqttMsg{topic:format!("room/{}/res/update", r), msg: serde_json::to_string(&t).unwrap(), ..Default::default()})?;
         Ok(())
     }
 

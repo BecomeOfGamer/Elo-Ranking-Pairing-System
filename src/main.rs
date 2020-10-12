@@ -16,6 +16,7 @@ use std::net::TcpStream;
 use std::str;
 use clap::{App, Arg};
 use uuid::Uuid;
+use std::time::SystemTime;
 use rumqtt::{MqttClient, MqttOptions, QoS, ReconnectOptions};
 
 use serde_derive::{Serialize, Deserialize};
@@ -257,17 +258,19 @@ fn main() -> std::result::Result<(), Error> {
         let rx1 = rx.clone();
         
         thread::spawn(move || -> Result<(), Error> {
-            
             let mut mqtt_options = MqttOptions::new(generate_client_id(), server_addr, server_port.parse::<u16>()?);
             mqtt_options = mqtt_options.set_keep_alive(100);
-            mqtt_options = mqtt_options.set_request_channel_capacity(100000);
-            mqtt_options = mqtt_options.set_notification_channel_capacity(100000);
+            mqtt_options = mqtt_options.set_request_channel_capacity(10000);
+            mqtt_options = mqtt_options.set_notification_channel_capacity(10000);
             //mqtt_options = mqtt_options.set_reconnect_opts(ReconnectOptions::Always(1));
             //println!("mqtt_options {:#?}", mqtt_options);
-            let update = tick(Duration::from_millis(1000));
+            let update = tick(Duration::from_millis(100));
             let (mut mqtt_client, notifications) = MqttClient::start(mqtt_options.clone())?;
             loop {
                 select! {
+                    recv(update) -> d => {
+
+                    },
                     recv(rx1) -> d => {
                         let handle = || -> Result<(), Error> 
                         {
@@ -277,7 +280,14 @@ fn main() -> std::result::Result<(), Error> {
                                     isServerLive = false;
                                     isBackup = false;
                                 }
-                                if d.topic.len() > 2 {
+                                let diff = d.time.duration_since(SystemTime::now());
+                                let mut difftime = 0;
+                                match diff {
+                                    Ok(n) => { difftime = n.as_micros(); },
+                                    Err(_) => {},
+                                }
+                                println!("difftime {}", difftime);
+                                if d.topic.len() > 2 && difftime == 0 {
                                     let msg_res = mqtt_client.publish(d.topic, QoS::AtMostOnce, false, d.msg);
                                     match msg_res {
                                         Ok(_) =>{},
@@ -289,7 +299,6 @@ fn main() -> std::result::Result<(), Error> {
                             }
                             Ok(())
                         };
-                        
                         if let Err(msg) = handle() {
                             panic!("mqtt {:?}", msg);
                             let (mut mqtt_client, notifications) = MqttClient::start(mqtt_options.clone())?;
