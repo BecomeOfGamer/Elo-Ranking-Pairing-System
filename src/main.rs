@@ -105,7 +105,7 @@ fn generate_client_id() -> String {
 }
 
 fn get_url(setting: Setting) -> String {
-    let s = format!("mysql://{}:{}@{}:3306/erps", setting.server_setting.clone().unwrap().MYSQL_ACCOUNT.unwrap(), setting.server_setting.clone().unwrap().MYSQL_PASSWORD.unwrap(), setting.server_setting.clone().unwrap().SQL_IP.unwrap());
+    let s = format!("mysql://{}:{}@{}:4000/erps", setting.server_setting.clone().unwrap().MYSQL_ACCOUNT.unwrap(), setting.server_setting.clone().unwrap().MYSQL_PASSWORD.unwrap(), setting.server_setting.clone().unwrap().SQL_IP.unwrap());
     println!("mysql!: {}", s);
     s
 }
@@ -168,13 +168,8 @@ fn main() -> std::result::Result<(), Error> {
             .help("backup"),
         ).get_matches();
 
-<<<<<<< HEAD
-    let server_addr = matches.value_of("SERVER").unwrap_or("172.104.78.55").to_owned();
-    let server_port = matches.value_of("PORT").unwrap_or("1883").to_owned();
-=======
     let server_addr = matches.value_of("SERVER").unwrap_or(&setting.server_setting.clone().unwrap().SERVER_IP.unwrap()).to_owned();
     let server_port = matches.value_of("PORT").unwrap_or(&setting.server_setting.clone().unwrap().PORT.unwrap()).to_owned();
->>>>>>> ff381ae6d0750df3b7222f81e6dc00f911081b93
     let client_id = matches
         .value_of("CLIENT_ID")
         .map(|x| x.to_owned())
