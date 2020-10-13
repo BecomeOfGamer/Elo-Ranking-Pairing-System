@@ -2,7 +2,7 @@ use serde_derive::{Serialize, Deserialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::{HashMap, BTreeMap};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use crate::msg::*;
 use crossbeam_channel::{bounded, tick, Sender, Receiver, select};
 use failure::Error;
@@ -225,11 +225,24 @@ impl RoomData {
             pub team: Vec<String>,
         }
         let mut t = teamCell {room: self.master.clone(), team: vec![]};
-        
         for user in &self.users {
             t.team.push(user.borrow().id.clone());
         }
         msgtx.try_send(MqttMsg{topic:format!("room/{}/res/update", r), msg: serde_json::to_string(&t).unwrap(), ..Default::default()})?;
+        Ok(())
+    }
+
+    pub fn member_update(&self, msgtx: &Sender<MqttMsg>, m: String) -> Result<(), Error>{
+        #[derive(Serialize, Deserialize)]
+        pub struct teamCell {
+            pub room: String,  
+            pub team: Vec<String>,
+        }
+        let mut t = teamCell {room: self.master.clone(), team: vec![]};
+        for user in &self.users {
+            t.team.push(user.borrow().id.clone());
+        }
+        msgtx.try_send(MqttMsg{topic:format!("member/{}/res/update", m), msg: serde_json::to_string(&t).unwrap(), ..Default::default()})?;
         Ok(())
     }
 
@@ -287,7 +300,12 @@ impl FightGroup {
         }
         false
     }
-
+    pub fn room_msg(&self, msg: String, msgtx: Sender<MqttMsg>) -> () {
+        for r in &self.rooms {
+            msgtx.try_send(MqttMsg{topic:format!("room/{}/res/room_msg", r.borrow().master), 
+                msg: msg.clone(), ..Default::default()});
+        }
+    }
     pub fn get_users_id_hero(&self) -> Vec<(String, String, String, Vec<UserEquInfo>)> {
         let mut res: Vec<(String, String, String, Vec<UserEquInfo>)> = vec![];
         for r in &self.rooms {
@@ -475,6 +493,12 @@ pub enum PrestartStatus {
 
 impl FightGame {
 
+    pub fn room_msg(&self, msg: String, msgtx: Sender<MqttMsg>) -> () {
+        for r in &self.room_names {
+            msgtx.try_send(MqttMsg{topic:format!("room/{}/res/room_msg", r), 
+                msg: msg.clone(), ..Default::default()});
+        }
+    }
     pub fn update_names(&mut self) {
         self.room_names.clear();
         self.user_names.clear();
