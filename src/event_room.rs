@@ -2610,7 +2610,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                         u.borrow_mut().hero = x.hero;
                                         mqttmsg = MqttMsg{topic:format!("member/{}/res/choose_hero", u.borrow().id), 
                                             msg: format!(r#"{{"id":"{}", "hero":"{}"}}"#, u.borrow().id, u.borrow().hero), ..Default::default()};
-                                        msgtx.try_send(MqttMsg{topic:format!("room/{}/res/choose_hero", u.borrow().id), 
+                                        msgtx.try_send(MqttMsg{topic:format!("room/{}/res/choose_hero", u.borrow().rid), 
                                             msg: format!(r#"{{"id":"{}", "hero":"{}"}}"#, u.borrow().id, u.borrow().hero), ..Default::default()})?;
                                     }
                                 },
@@ -3116,9 +3116,9 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                     }                             
                                     if let Some(u) = u {
                                         let mut is_null = false;
-                                        if u.borrow().game_id != 0 {
+                                        let game = GameingGroups.get(&u.borrow().game_id);
+                                        if u.borrow().game_id != 0 && game.is_none() {
                                             PreStartGroups.remove(&u.borrow().game_id);
-                                            GameingGroups.remove(&u.borrow().game_id);
                                             u.borrow_mut().game_id = 0;
                                             let gid = u.borrow().gid;
                                             ReadyGroups.remove(&gid);
