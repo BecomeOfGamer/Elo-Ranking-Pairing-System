@@ -1,3 +1,4 @@
+use serde::{Serializer, Deserializer};
 use serde_derive::{Serialize, Deserialize};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -57,7 +58,7 @@ pub struct EquOption {
     pub effect: Vec<f32>, 
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct UserEquInfo {
     pub equ_id: u32,
     pub rank: u8,
@@ -71,8 +72,36 @@ pub struct UserEquInfo {
     pub option3lv: u8,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+mod approx_instant {
+    use std::time::{Instant, SystemTime};
+    use serde::{Serialize, Serializer, Deserialize, Deserializer, de::Error};
+
+    pub fn serialize<S>(instant: &Instant, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let system_now = SystemTime::now();
+        let instant_now = Instant::now();
+        let approx = system_now - (instant_now - *instant);
+        approx.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Instant, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let de = SystemTime::deserialize(deserializer)?;
+        let system_now = SystemTime::now();
+        let instant_now = Instant::now();
+        let duration = system_now.duration_since(de).map_err(Error::custom)?;
+        let approx = instant_now - duration;
+        Ok(approx)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BanTime {
+    #[serde(with = "approx_instant")]
     pub from: Instant,
     pub long: Duration,
 }
@@ -86,7 +115,7 @@ impl Default for BanTime {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct User {
     pub id: String,
     pub name: String,
@@ -94,10 +123,7 @@ pub struct User {
     pub honor: i32,
     pub ban: BanTime,
     pub info: PlayerInfo,
-    pub ng1v1: ScoreInfo,
-    pub ng5v5: ScoreInfo,
-    pub rk1v1: ScoreInfo,
-    pub rk5v5: ScoreInfo,
+    pub rank: BTreeMap<String, ScoreInfo>,
     pub rid: u32,
     pub gid: u32,
     pub game_id: u32,
@@ -108,7 +134,7 @@ pub struct User {
     pub blacklist: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct PlayerInfo {
     pub PlayerExp: u32,
     pub PlayerLv: u32,
@@ -119,14 +145,14 @@ pub struct PlayerInfo {
     pub HiddenRank: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct ScoreInfo {
     pub score: i16,
     pub WinCount: u32,
     pub LoseCount: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Hero {
     pub Hero_name: String,
     pub Level: u32,
@@ -140,36 +166,37 @@ pub struct RoomData {
     pub master: String,
     pub last_master: String,
     pub mode: String,
-    pub avg_ng1v1: i16,
-    pub avg_rk1v1: i16,
-    pub avg_ng5v5: i16,
-    pub avg_rk5v5: i16,
+    pub avg: BTreeMap<String, i16>,
     pub avg_honor: i32,
     pub ready: i8,
     pub queue_cnt: i16,
+    pub modes: Rc<RefCell<Vec<String>>>,
 }
 
 impl RoomData {
     pub fn update_avg(&mut self) {
-        let mut sum_ng1v1 = 0;
-        let mut sum_rk1v1 = 0;
-        let mut sum_ng5v5 = 0;
-        let mut sum_rk5v5 = 0;
         let mut sum_honor = 0;
-        
+        self.avg.clear();
+        for m in self.modes.borrow().iter() {
+            self.avg.insert(m.clone(), 0);
+        }
         for user in &self.users {
-            sum_ng1v1 += user.borrow().ng1v1.score;
-            sum_rk1v1 += user.borrow().rk1v1.score;
-            sum_ng5v5 += user.borrow().ng5v5.score;
-            sum_rk5v5 += user.borrow().rk5v5.score;
+            for (m, score) in &user.borrow().rank {
+                //self.avg[&*m] += score.score;
+                if let Some(avg) = self.avg.get_mut(&*m) {
+                    *avg += score.score;
+                }
+            }
             sum_honor += user.borrow().honor;
         }
         if self.users.len() > 0 {
-            self.avg_ng1v1 = sum_ng1v1/self.users.len() as i16;
-            self.avg_rk1v1 = sum_rk1v1/self.users.len() as i16;
-            self.avg_ng5v5 = sum_ng5v5/self.users.len() as i16 + 50 * (self.users.len() as i16 - 1);
-            self.avg_rk5v5 = sum_rk5v5/self.users.len() as i16 + 50 * (self.users.len() as i16 - 1);
             self.avg_honor = sum_honor/self.users.len() as i32;
+            for m in self.modes.borrow().iter() {
+                //self.avg[&*m] = (self.avg[&*m] as usize / self.users.len()) as i16;
+                if let Some(avg) = self.avg.get_mut(&*m) {
+                    *avg = (*avg as usize / self.users.len()) as i16;
+                }
+            }
         }
     }
 
@@ -331,11 +358,7 @@ impl FightGroup {
                 self.user_order.push(u.clone());
             }
         }
-        if mode == "rk1p2t" {
-            self.user_order.sort_by_key(|x| x.borrow().rk1v1.score);
-        } else if mode == "rk5p2t" {
-            self.user_order.sort_by_key(|x| x.borrow().rk5v5.score);
-        }
+        self.user_order.sort_by_key(|x| x.borrow().rank.get(&mode).unwrap().score);
     }
 
     pub fn get_group_order(&mut self, mode: String) -> Vec<String> {
@@ -370,27 +393,15 @@ impl FightGroup {
     }
 
     pub fn update_avg(&mut self) {
-        let mut sum_ng1v1: i32 = 0;
-        let mut sum_rk1v1: i32 = 0;
-        let mut sum_ng5v5: i32 = 0;
-        let mut sum_rk5v5: i32 = 0;
         let mut sum_honor: i32 = 0;
         
         self.user_count = 0;
         for room in &self.rooms {
-            sum_ng1v1 += room.borrow().avg_ng1v1 as i32 * room.borrow().users.len() as i32;
-            sum_rk1v1 += room.borrow().avg_rk1v1 as i32 * room.borrow().users.len() as i32;
-            sum_ng5v5 += room.borrow().avg_ng5v5 as i32 * room.borrow().users.len() as i32;
-            sum_rk5v5 += room.borrow().avg_rk5v5 as i32 * room.borrow().users.len() as i32;
             sum_honor += room.borrow().avg_honor as i32 * room.borrow().users.len() as i32;
             
             self.user_count += room.borrow().users.len() as i16;
         }
         if self.user_count > 0 {
-            self.avg_ng1v1 = (sum_ng1v1/self.user_count as i32) as i16;
-            self.avg_rk1v1 = (sum_rk1v1/self.user_count as i32) as i16;
-            self.avg_ng5v5 = (sum_ng5v5/self.user_count as i32) as i16;
-            self.avg_rk5v5 = (sum_rk5v5/self.user_count as i32) as i16;
             self.avg_honor = (sum_honor/self.user_count as i32);
         }
     }

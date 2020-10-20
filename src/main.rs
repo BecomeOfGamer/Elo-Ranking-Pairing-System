@@ -28,6 +28,7 @@ use std::io::prelude::*;
 use log::Level;
 use serde_json::{self, Value};
 use regex::Regex;
+use std::collections::{HashMap, BTreeMap};
 
 use ::futures::Future;
 use mysql;
@@ -37,7 +38,7 @@ extern crate toml;
 use crossbeam_channel::{bounded, tick, Sender, Receiver, select};
 use crate::event_room::RoomEventData;
 use crate::event_room::SqlData;
-use crate::event_room::QueueData;
+use crate::event_room::{QueueData, GameModeCfg, Config};
 use crate::msg::*;
 
 #[doc(include = "char.md")]
@@ -441,6 +442,35 @@ fn main() -> std::result::Result<(), Error> {
     let mut is_live = true;
     let mut sender = sender.clone();
     
+    // read config
+    let file_path = "src/config.toml";
+    let mut file = match File::open(file_path) {
+        Ok(f) => f,
+        Err(e) => panic!("no such file {} exception:{}", file_path, e)
+    };
+    let mut str_val = String::new();
+    match file.read_to_string(&mut str_val) {
+        Ok(s) => s
+        ,
+        Err(e) => panic!("Error Reading file: {}", e)
+    };
+    let config: Config = toml::from_str(&str_val).unwrap();
+    
+    let score_interval = config.game_setting.clone().unwrap().SCORE_INTERVAL.unwrap();
+    let honor_threshold = config.game_setting.clone().unwrap().HONOR_THRESHOLD.unwrap();
+    let block_recent_player_of_games = config.game_setting.clone().unwrap().BLOCK_RECENT_PLAYER_OF_GAMES.unwrap();
+    let mut ModeCfg: BTreeMap<String, GameModeCfg> = BTreeMap::new();
+    for x in config.game_mode.unwrap() {
+        let gmc = GameModeCfg {
+            mode: x.MODE.clone().unwrap(),
+            team_size: x.TEAM_SIZE.unwrap(),
+            match_size: x.MATCH_SIZE.unwrap()
+        };
+        ModeCfg.insert(x.MODE.clone().unwrap(), gmc);
+    }
+    let modes: Vec<String> = ModeCfg.into_iter().map(|(k, v)| k).collect();
+    let hero = config.game_setting.clone().unwrap().HERO.unwrap();
+
     loop {
         use rumqtt::Notification::Publish;
         
@@ -519,7 +549,7 @@ fn main() -> std::result::Result<(), Error> {
                                         event_room::server_login(userid, v, sender.clone())?;
                                     } else {
                                         //info!("login: userid: {} json: {:?}", userid, v);
-                                        event_member::login(userid, v, pool.clone(), sender.clone(), sender1.clone())?;
+                                        event_member::login(userid, v, pool.clone(), sender.clone(), sender1.clone(), &modes)?;
                                     }
                                 } else if relogout.is_match(topic_name) {
                                     let cap = relogout.captures(topic_name).unwrap();

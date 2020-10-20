@@ -30,26 +30,26 @@ use crate::elo::*;
 use std::process::Command;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-struct GameSetting {
-    SCORE_INTERVAL: Option<i16>,
-    HONOR_THRESHOLD: Option<i32>,
-    BLOCK_RECENT_PLAYER_OF_GAMES: Option<usize>,
-    HERO: Option<Vec<String>>,
+pub struct GameSetting {
+    pub SCORE_INTERVAL: Option<i16>,
+    pub HONOR_THRESHOLD: Option<i32>,
+    pub BLOCK_RECENT_PLAYER_OF_GAMES: Option<usize>,
+    pub HERO: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-struct GameMode {
-    MODE: Option<String>,
-    TEAM_SIZE: Option<i16>,
-    MATCH_SIZE: Option<usize>,
-    SCORE_INTERVAL: Option<i16>,
-    BLOCK_RECENT_PLAYER_OF_GAMES: Option<usize>,
+pub struct GameMode {
+    pub MODE: Option<String>,
+    pub TEAM_SIZE: Option<i16>,
+    pub MATCH_SIZE: Option<usize>,
+    pub SCORE_INTERVAL: Option<i16>,
+    pub BLOCK_RECENT_PLAYER_OF_GAMES: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-struct Config {
-    game_setting: Option<GameSetting>,
-    game_mode: Option<Vec<GameMode>>,
+pub struct Config {
+    pub game_setting: Option<GameSetting>,
+    pub game_mode: Option<Vec<GameMode>>,
 }
 
 const TEAM_SIZE: i16 = 5;
@@ -546,10 +546,7 @@ pub struct QueueRoomData {
     pub rid: u32,
     pub gid: u32,
     pub user_len: i16,
-    pub avg_ng1v1: i16,
-    pub avg_rk1v1: i16,
-    pub avg_ng5v5: i16,
-    pub avg_rk5v5: i16,
+    pub avg: BTreeMap<String, i16>,
     pub honor: bool,
     pub mode: String,
     pub ready: i8,
@@ -567,10 +564,7 @@ pub struct ReadyGroupData {
     pub rid: Vec<u32>,
     pub max_room_len: i16,
     pub user_len: i16,
-    pub avg_ng1v1: i16,
-    pub avg_rk1v1: i16,
-    pub avg_ng5v5: i16,
-    pub avg_rk5v5: i16,
+    pub avg: BTreeMap<String, i16>,
     pub honor: bool,
     pub allow_same_hero: bool,
     pub game_status: u16,
@@ -765,93 +759,39 @@ fn user_score(u: &Rc<RefCell<User>>, value: i16, msgtx: &Sender<MqttMsg>, sender
     msgtx.try_send(MqttMsg{topic:format!("member/{}/res/login", u.borrow().id), 
         msg: format!(r#"{{"msg":"ok" }}"#), ..Default::default()})?;
     //println!("Update!");
-    if mode == "ng1p2t" {
-        u.borrow_mut().ng1v1.score += value;
+    let rank : &mut BTreeMap<String, ScoreInfo> = &mut u.borrow_mut().rank;
+    if (rank.contains_key(&mode)) {
         if Win == true {
-            u.borrow_mut().ng1v1.WinCount += 1;
+            rank.get_mut(&mode).unwrap().WinCount += 1;
         } else {
-            u.borrow_mut().ng1v1.LoseCount += 1;
+            rank.get_mut(&mode).unwrap().LoseCount += 1;
         }
-        sender.send(SqlData::UpdateScore(SqlScoreData {id: u.borrow().id.clone(), score: u.borrow().ng1v1.score.clone(), mode: mode.clone(), Res: Win.clone()}));
-    
-    } else if mode == "ng5p2t" {
-        u.borrow_mut().ng5v5.score += value;
-        if Win == true {
-            u.borrow_mut().ng5v5.WinCount += 1;
-        } else {
-            u.borrow_mut().ng5v5.LoseCount += 1;
-        }
-        sender.send(SqlData::UpdateScore(SqlScoreData {id: u.borrow().id.clone(), score: u.borrow().ng5v5.score.clone(), mode: mode.clone(), Res: Win.clone()}));
-    
-    } else if mode == "rk1p2t" {
-        u.borrow_mut().rk1v1.score += value;
-        if Win == true {
-            u.borrow_mut().rk1v1.WinCount += 1;
-        } else {
-            u.borrow_mut().rk1v1.LoseCount += 1;
-        }
-        sender.send(SqlData::UpdateScore(SqlScoreData {id: u.borrow().id.clone(), score: u.borrow().rk1v1.score.clone(), mode: mode.clone(), Res: Win.clone()}));
-    
-    } else if mode == "rk5p2t" {
-        u.borrow_mut().rk5v5.score += value;
-        if Win == true {
-            u.borrow_mut().rk5v5.WinCount += 1;
-        } else {
-            u.borrow_mut().rk5v5.LoseCount += 1;
-        }
-        sender.send(SqlData::UpdateScore(SqlScoreData {id: u.borrow().id.clone(), score: u.borrow().rk5v5.score.clone(), mode: mode.clone(), Res: Win.clone()}));
-    
     }
-        //let sql = format!("UPDATE user_ng as a JOIN user as b ON a.id=b.id SET score={} WHERE b.userid='{}';", u.borrow().ng, u.borrow().id);
+    //let sql = format!("UPDATE user_ng as a JOIN user as b ON a.id=b.id SET score={} WHERE b.userid='{}';", u.borrow().ng, u.borrow().id);
     //println!("sql: {}", sql);
     //let qres = conn.query(sql.clone())?;
     Ok(())
 }
 
-fn get_ng(team : &Vec<Rc<RefCell<User>>>, mode: String) -> Vec<i32> {
+fn get_rk(team : &Vec<Rc<RefCell<User>>>, mode: String) -> Vec<i32> {
     let mut res: Vec<i32> = vec![];
-    if mode == "ng1p2t" {
-        for u in team {
-            res.push(u.borrow().ng1v1.score.into());
-        }
-    }
-    else if mode == "ng5p2t" {
-        for u in team {
-            res.push(u.borrow().ng5v5.score.into());
-        }
+    for u in team {
+        let rank : &BTreeMap<String, ScoreInfo> = &u.borrow().rank;
+        if (rank.contains_key(&mode)) {
+            res.push(rank.get(&mode).unwrap().score.into());
+        }        
     }
     res
 }
 
-fn get_rk(team : &Vec<Rc<RefCell<User>>>, mode: String) -> Vec<i32> {
-    let mut res: Vec<i32> = vec![];
-    if mode == "rk1p2t"{
-        for u in team {
-            res.push(u.borrow().rk1v1.score.into());
-        }
-    }
-    else if mode == "rk5p2t" {
-        for u in team {
-            res.push(u.borrow().rk5v5.score.into());
-        }
-    }
-    res
-}
 
 fn settlement_ng_score(win: &Vec<Rc<RefCell<User>>>, lose: &Vec<Rc<RefCell<User>>>, msgtx: &Sender<MqttMsg>, sender: &Sender<SqlData>, conn: &mut mysql::PooledConn, mode: String) {
     if win.len() == 0 || lose.len() == 0 {
         return;
     }
-    let mut win_score: Vec<i32> = vec![];
-    let mut lose_score: Vec<i32> = vec![];
-    if mode == "ng1p2t" || mode  == "ng5p2t" {
-        win_score = get_ng(win, mode.clone());
-        lose_score = get_ng(lose, mode.clone());
-    }
-    else {
-        win_score = get_rk(win, mode.clone());
-        lose_score = get_rk(lose, mode.clone());
-    }
+    let mut win_score: Vec<i32> = get_rk(win, mode.clone());
+    let mut lose_score: Vec<i32> = get_rk(lose, mode.clone());
+    
     let elo = EloRank {k:20.0};
     let (rw, rl) = elo.compute_elo_team(&win_score, &lose_score);
     println!("{} Game Over", mode);
@@ -1262,20 +1202,8 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                         let mut id: Vec<u32> = vec![];
                         let mut new_now = Instant::now();
                         tq = QueueRoom.iter().map(|x|Rc::clone(x.1)).collect();
-                        //tq.sort_by_key(|x| x.borrow().avg_rk);
-                        //println!("Collect Time: {:?}",Instant::now().duration_since(new_now));
-                        
-                        
                         let mut new_now = Instant::now();
-                        if mode == "ng1p2t" {
-                            tq.sort_by_key(|x| x.borrow().avg_ng1v1);
-                        } else if mode == "rk1p2t" {
-                            tq.sort_by_key(|x| x.borrow().avg_rk1v1);
-                        } else if mode == "ng5p2t" {
-                            tq.sort_by_key(|x| x.borrow().avg_ng5v5);
-                        } else if mode == "rk5p2t" {
-                            tq.sort_by_key(|x| x.borrow().avg_rk5v5);
-                        }
+                        tq.sort_by_key(|x| x.borrow().avg[&mode]);
                         //println!("Sort Time: {:?}",Instant::now().duration_since(new_now));
                         let mut new_now1 = Instant::now();
                         for i in 1..team_size+1 {
@@ -1312,26 +1240,10 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                                     continue;
                                 }
                                 let mut group_score = 0;
-                                if mode == "ng1p2t" {
-                                    group_score = g.avg_ng1v1;
-                                } else if mode == "rk1p2t" {
-                                    group_score = g.avg_rk1v1;
-                                } else if mode == "ng5p2t" {
-                                    group_score = g.avg_ng5v5;
-                                } else if mode == "rk5p2t" {
-                                    group_score = g.avg_rk5v5;
-                                }
+                                group_score = g.avg[&mode];
 
                                 let mut room_score = 0;
-                                if mode == "ng1p2t" {
-                                    room_score = v.borrow().avg_ng1v1;
-                                } else if mode == "rk1p2t" {
-                                    room_score = v.borrow().avg_rk1v1;
-                                } else if mode == "ng5p2t" {
-                                    room_score = v.borrow().avg_ng5v5;
-                                } else if mode == "rk5p2t" {
-                                    room_score = v.borrow().avg_rk5v5;
-                                }
+                                room_score = v.borrow().avg[&mode];
 
                                 if g.user_len > 0 && g.user_len < team_size && (group_score + v.borrow().queue_cnt*score_interval) < room_score {
                                     for r in g.rid {
@@ -1347,14 +1259,9 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                                     g.user_name = [g.user_name.as_slice(), v.borrow().user_name.as_slice()].concat();
                                     g.honor = v.borrow().honor.clone();
                                     let mut ng = (group_score * g.user_len + room_score * v.borrow().user_len) as i16 / (g.user_len + v.borrow().user_len) as i16;
-                                    if mode == "ng1p2t" {
-                                        g.avg_ng1v1 = ng;
-                                    } else if mode == "rk1p2t" {
-                                        g.avg_rk1v1 = ng;
-                                    } else if mode == "ng5p2t" {
-                                        g.avg_ng5v5 = ng;
-                                    } else if mode == "rk5p2t" {
-                                        g.avg_rk5v5 = ng;
+                                    //g.avg[&mode] = ng;
+                                    if let Some(avg) = g.avg.get_mut(&mode) {
+                                        *avg = ng;
                                     }
                                     
                                     g.user_len += v.borrow().user_len;
@@ -1379,14 +1286,9 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                                             g.honor = v.borrow().honor.clone();
                                         }
                                         let mut score = (group_score * g.user_len + room_score * v.borrow().user_len) as i16 / (g.user_len + v.borrow().user_len) as i16;
-                                        if mode == "ng1p2t" {
-                                            g.avg_ng1v1 = score;
-                                        } else if mode == "rk1p2t" {
-                                            g.avg_rk1v1 = score;
-                                        } else if mode == "ng5p2t" {
-                                            g.avg_ng5v5 = score;
-                                        } else if mode == "rk5p2t" {
-                                            g.avg_rk5v5 = score;
+                                        //g.avg[&mode] = score;
+                                        if let Some(avg) = g.avg.get_mut(&mode) {
+                                            *avg = score;
                                         }
                                         if (g.max_room_len < v.borrow().user_len) {
                                             g.max_room_len = v.borrow().user_len.clone()
@@ -1475,19 +1377,8 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                             if block {
                                 continue;
                             }
-                            
                             let mut group_score = 0;
-                            if mode == "ng1p2t" {
-                                group_score = rg.borrow().avg_ng1v1;
-                            } else if mode == "rk1p2t" {
-                                group_score = rg.borrow().avg_rk1v1;
-                            } else if mode == "ng5p2t" {
-                                group_score = rg.borrow().avg_ng5v5;
-                            } else if mode == "rk5p2t" {
-                                group_score = rg.borrow().avg_rk5v5;
-                            }
-
-                            
+                            group_score = rg.borrow().avg[&mode];
                             if rg.borrow().game_status == 0 && fg.team_len < match_size {
                                 if total_score == 0 {
                                     total_score += group_score as i16;
@@ -1631,29 +1522,10 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
         QueueSender.insert(x.MODE.clone().unwrap(), tx1.clone());
         ModeCfg.insert(x.MODE.clone().unwrap(), gmc);
     }
-    
+    let modes: Vec<String> = ModeCfg.clone().into_iter().map(|(k, v)| k).collect();
     let hero = config.game_setting.clone().unwrap().HERO.unwrap();
     sender.try_send(SqlData::HeroNum(SqlHeroname {hero_type: hero.clone()}));    
-    // let mut tx1 = HandleQueueRequest(msgtx.clone(), tx.clone(), "ng1p2t".to_string())?;
-    // let mut tx2 = HandleQueueRequest(msgtx.clone(), tx.clone(), "rk1p2t".to_string())?;
-    // let mut tx3 = HandleQueueRequest(msgtx.clone(), tx.clone(), "ng5p2t".to_string())?;
-    // let mut tx4 = HandleQueueRequest(msgtx.clone(), tx.clone(), "rk5p2t".to_string())?;
     
-    // QueueSender.insert("ng1p2t".to_string(), tx1.clone());
-    // QueueSender.insert("rk1p2t".to_string(), tx2.clone());
-    // QueueSender.insert("ng5p2t".to_string(), tx3.clone());
-    // QueueSender.insert("rk5p2t".to_string(), tx4.clone());
-    // let mut tx1: Sender<QueueData>;
-    // match QueueSender1.clone() {
-    //     Some(s) => {
-    //         tx1 = s;
-    //         println!("in");
-    //     },
-    //     None => {
-    //         tx1 = HandleQueueRequest(msgtx.clone(), tx.clone())?;
-    //         println!("2 in");
-    //     },
-    // }
     #[cfg(target_os = "linux")]
     let update5000ms = tick(Duration::from_millis(5000));
     #[cfg(target_os = "linux")]
@@ -1722,23 +1594,30 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
         // Equipment
         let mut TotalEquip: BTreeMap<u32, Rc<RefCell<Equipment>>> = BTreeMap::new();
         let mut TotalEquOption: BTreeMap<u32, Rc<RefCell<EquOption>>> = BTreeMap::new();
-        
-        // let sql = format!(r#"select userid, a.score as ng1v1, b.score as rk1v1, d.score as ng5v5, e.score as rk5v5, f.honor as honor, g.Level, g.Exp, h.Rank, h.RankLevel, h.Score, i.Win, i.Lose, j.Total_Currency, name from user as c 
-        //                     join user_ng1v1 as a on a.id=c.id 
-        //                     join user_rk1v1 as b on b.id=c.id
-        //                     join user_ng5v5 as d on d.id=c.id
-        //                     join user_rk5v5 as e on e.id=c.id
-        //                     join user_honor as f on f.id=c.id
-        //                     join user_level as g on g.id=c.id
-        //                     join user_rank as h on h.id=c.id
-        //                     join user_battle as i on i.id=c.id
-        //                     join user_currency as j on j.id=c.id;"#);
-        let sql = format!(r#"select userid, name, Level, Exp, Money, Currency, a.score as rk1v1Score, a.Win as rk1v1Win, a.Lose as rk1v1Lose, b.score as ng1v1Score, b.Win as ng1v1Win, b.Lose as ng1v1Lose, c.score as rk5v5Score, c.Win as rk5v5Win, c.Lose as rk5v5Lose, d.score as ng5v5Score, d.Win as ng5v5Win, d.Lose as ng5v5Lose, e.honor as honor from user as f 
+        for mode in modes.clone() {
+            let sql = format!(r#"select count(*) from information_schema.tables where TABLE_NAME='{}';"#, mode);
+            let mut qres: mysql::QueryResult = conn.query(sql.clone())?;
+            let v = qres.next().unwrap();
+            println!("{:?}", v);
+            let insert_sql = format!(r#"create TABLE {} (
+                id INT UNSIGNED NOT NULL,
+                score INT UNSIGNED NOT NULL,
+                Win INT UNSIGNED NOT NULL,
+                Lose INT UNSIGNED NOT NULL,
+                create_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id)
+            );"#, "ng1p2t");
+        }
+        let sql = format!(r#"select userid, name, Level, Exp, Money, Currency, a.score as rk1v1Score, a.Win as rk1v1Win, a.Lose as rk1v1Lose, 
+        b.score as ng1v1Score, b.Win as ng1v1Win, b.Lose as ng1v1Lose, 
+        c.score as rk5v5Score, c.Win as rk5v5Win, c.Lose as rk5v5Lose, 
+        d.score as ng5v5Score, d.Win as ng5v5Win, d.Lose as ng5v5Lose, e.honor as honor from user as f 
                             join user_rk1v1 as a on a.id=f.id
                             join user_ng1v1 as b on b.id=f.id
                             join user_rk5v5 as c on c.id=f.id
                             join user_ng5v5 as d on d.id=f.id
                             join user_honor as e on e.id=f.id;"#);
+        
         let qres2: mysql::QueryResult = conn.query(sql.clone())?;
         let mut userid: String = "".to_owned();
         let mut ng: i16 = 0;
@@ -1756,8 +1635,6 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                 honor: mysql::from_value(a.get("honor").unwrap()),
                 ..Default::default()
             };
-
-            
 
             let ng1v1Info = ScoreInfo {
                 score: mysql::from_value(a.get("ng1v1Score").unwrap()),
@@ -1780,10 +1657,10 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                 LoseCount: mysql::from_value(a.get("rk5v5Lose").unwrap()),
             };
 
-            user.ng1v1 = ng1v1Info;
-            user.ng5v5 = ng5v5Info;
-            user.rk1v1 = rk1v1Info;
-            user.rk5v5 = rk5v5Info;
+            // user.ng1v1 = ng1v1Info;
+            // user.ng5v5 = ng5v5Info;
+            // user.rk1v1 = rk1v1Info;
+            // user.rk5v5 = rk5v5Info;
 
             user.info.PlayerLv =  mysql::from_value(a.get("Level").unwrap());
             user.info.PlayerExp =  mysql::from_value(a.get("Exp").unwrap());
@@ -2163,10 +2040,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                 rid: r.borrow().rid.clone(),
                                                 gid: 0,
                                                 user_len: r.borrow().users.len().clone() as i16,
-                                                avg_ng1v1: r.borrow().avg_ng1v1.clone(),
-                                                avg_rk1v1: r.borrow().avg_rk1v1.clone(),
-                                                avg_ng5v5: r.borrow().avg_ng5v5.clone(),
-                                                avg_rk5v5: r.borrow().avg_rk5v5.clone(),
+                                                avg: r.borrow().avg.clone(),
                                                 honor: h,
                                                 allow_same_hero: true,
                                                 mode: group.borrow().mode.clone(),
@@ -2704,10 +2578,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                                     rid: r.borrow().rid.clone(),
                                                                     gid: 0,
                                                                     user_len: r.borrow().users.len().clone() as i16,
-                                                                    avg_ng1v1: r.borrow().avg_ng1v1.clone(),
-                                                                    avg_rk1v1: r.borrow().avg_rk1v1.clone(),
-                                                                    avg_ng5v5: r.borrow().avg_ng5v5.clone(),
-                                                                    avg_rk5v5: r.borrow().avg_rk5v5.clone(),
+                                                                    avg: r.borrow().avg.clone(),
                                                                     honor: h,
                                                                     allow_same_hero: true,
                                                                     mode: gr.borrow().mode.clone(),
@@ -2807,10 +2678,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                         rid: r.borrow().rid.clone(),
                                                         gid: 0,
                                                         user_len: r.borrow().users.len().clone() as i16,
-                                                        avg_ng1v1: r.borrow().avg_ng1v1.clone(),
-                                                        avg_rk1v1: r.borrow().avg_rk1v1.clone(),
-                                                        avg_ng5v5: r.borrow().avg_ng5v5.clone(),
-                                                        avg_rk5v5: r.borrow().avg_rk5v5.clone(),
+                                                        avg: r.borrow().avg.clone(),
                                                         honor: h,
                                                         allow_same_hero: true,
                                                         mode: gr.borrow().mode.clone(),
@@ -2930,10 +2798,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                         rid: y.borrow().rid.clone(),
                                                         gid: 0,
                                                         user_len: y.borrow().users.len().clone() as i16,
-                                                        avg_ng1v1: y.borrow().avg_ng1v1.clone(),
-                                                        avg_rk1v1: y.borrow().avg_rk1v1.clone(),
-                                                        avg_ng5v5: y.borrow().avg_ng5v5.clone(),
-                                                        avg_rk5v5: y.borrow().avg_rk5v5.clone(),
+                                                        avg: y.borrow().avg.clone(),
                                                         honor: h,
                                                         allow_same_hero: true,
                                                         mode: x.mode.clone(),
@@ -3076,9 +2941,9 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                     msgtx.try_send(MqttMsg{topic:format!("member/{}/res/login", u2.borrow().id.clone()), 
                                                         msg: format!(r#"{{"msg":"ok","id":"{}"}}"#, u2.borrow().id.clone()), ..Default::default()})?;
                                                 }
+
                                                 mqttmsg = MqttMsg{topic:format!("member/{}/res/score", u2.borrow().id.clone()), 
-                                                    msg: format!(r#"{{"ng1p2t":{}, "ng5p2t":{}, "rk1p2t":{}, "rk5p2t":{}}}"#, 
-                                                u2.borrow().ng1v1.score.clone(), u2.borrow().ng5v5.score.clone(), u2.borrow().rk1v1.score.clone(), u2.borrow().rk1v1.score.clone()), ..Default::default()};
+                                                    msg: json!(u2.borrow().rank).to_string(), ..Default::default()};
                                             }
                                         }
                                         
@@ -3103,8 +2968,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                 msg: format!(r#"{{"msg":"ok","id":"{}"}}"#, x.u.id.clone()), ..Default::default()})?;
                                         }
                                         mqttmsg = MqttMsg{topic:format!("member/{}/res/score", x.u.id.clone()), 
-                                                msg: format!(r#"{{"ng1p2t":{}, "ng5p2t":{}, "rk1p2t":{}, "rk5p2t":{}}}"#, 
-                                                x.u.ng1v1.score, x.u.ng5v5.score, x.u.rk1v1.score, x.u.rk5v5.score), ..Default::default()};
+                                            msg: json!(x.u.rank).to_string(), ..Default::default()};
                                     }
                                 },
                                 RoomEventData::Logout(x) => {
@@ -3207,13 +3071,11 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                 master: x.id.clone(),
                                                 last_master: "".to_owned(),
                                                 mode: "".to_owned(),
-                                                avg_ng1v1: 0,
-                                                avg_rk1v1: 0,
-                                                avg_ng5v5: 0,
-                                                avg_rk5v5: 0,
                                                 avg_honor: u.borrow().honor,
                                                 ready: 0,
                                                 queue_cnt: 1,
+                                                avg: BTreeMap::new(),
+                                                modes: Rc::new(RefCell::new(modes.clone())),
                                             };
                                             new_room.add_user(Rc::clone(&u));
                                             let rid = new_room.rid;

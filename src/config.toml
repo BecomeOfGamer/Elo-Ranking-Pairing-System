@@ -9,18 +9,46 @@ MODE = "ng1p2t"
 TEAM_SIZE = 1
 MATCH_SIZE = 2
 
-
 [[game_mode]]
-MODE = "rk1p2t"
+MODE = "ng2p2t"
 TEAM_SIZE = 2
 MATCH_SIZE = 2
 
+[[game_mode]]
+MODE = "ng3p2t"
+TEAM_SIZE = 3
+MATCH_SIZE = 2
 
 [[game_mode]]
-MODE = "ng5p2t"
+MODE = "ng4p2t"
 TEAM_SIZE = 4
 MATCH_SIZE = 2
 
+[[game_mode]]
+MODE = "ng5p2t"
+TEAM_SIZE = 5
+MATCH_SIZE = 2
+
+
+[[game_mode]]
+MODE = "rk1p2t"
+TEAM_SIZE = 1
+MATCH_SIZE = 2
+
+[[game_mode]]
+MODE = "rk2p2t"
+TEAM_SIZE = 2
+MATCH_SIZE = 2
+
+[[game_mode]]
+MODE = "rk3p2t"
+TEAM_SIZE = 3
+MATCH_SIZE = 2
+
+[[game_mode]]
+MODE = "rk4p2t"
+TEAM_SIZE = 4
+MATCH_SIZE = 2
 
 [[game_mode]]
 MODE = "rk5p2t"

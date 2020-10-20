@@ -13,6 +13,7 @@ use crossbeam_channel::{bounded, tick, Sender, Receiver, select};
 use crate::event_room::*;
 use crate::room::User;
 use crate::room::ScoreInfo;
+use std::collections::{HashMap, BTreeMap};
 
 #[derive(Serialize, Deserialize)]
 struct LoginData {
@@ -25,11 +26,16 @@ struct LogoutData {
 }
 
 
-pub fn login(id: String, v: Value, pool: mysql::Pool, sender: Sender<RoomEventData>, sender1: Sender<SqlData>)
+pub fn login(id: String, v: Value, pool: mysql::Pool, sender: Sender<RoomEventData>, sender1: Sender<SqlData>, modes: &Vec<String>)
  -> std::result::Result<(), Error>
 {
     let data: LoginData = serde_json::from_value(v)?;
-    sender.send(RoomEventData::Login(UserLoginData {u: User { id: id.clone(), hero: "default name".to_string(), honor: 50, online: true, ng1v1: ScoreInfo{score: 1000, WinCount: 0, LoseCount: 0}, ng5v5:ScoreInfo{score: 1000, WinCount: 0, LoseCount: 0}, rk1v1: ScoreInfo{score: 1000, WinCount: 0, LoseCount: 0}, rk5v5: ScoreInfo{score: 1000, WinCount: 0, LoseCount: 0}, ..Default::default()}, dataid: data.id}));
+    let mut rk: BTreeMap<String, ScoreInfo> = BTreeMap::new();
+    for m in modes {
+        rk.insert(m.clone(), ScoreInfo{score: 1000, WinCount: 0, LoseCount: 0});
+    }
+    sender.send(RoomEventData::Login(UserLoginData {u: User { id: id.clone(), hero: "default name".to_string(), honor: 50, online: true, rank: rk,
+        ..Default::default()}, dataid: data.id}));
     Ok(())
     
 }
