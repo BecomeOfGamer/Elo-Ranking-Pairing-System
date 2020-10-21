@@ -1561,7 +1561,6 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
         loop {
             std::thread::sleep(std::time::Duration::from_millis(20000));
             txxx.try_send(std::time::Instant::now()).unwrap();
-            //println!("update200ms: rx len: {}, tx len: {}", rx.len(), txxx.len());
         }
     });
     
@@ -1578,7 +1577,6 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
         let mut isServerLive = true;
         let mut isBackup = isBackup.clone();
         let mut TotalRoom: BTreeMap<u32, Rc<RefCell<RoomData>>> = BTreeMap::new();
-        //let mut QueueRoom: BTreeMap<u32, Rc<RefCell<RoomData>>> = BTreeMap::new();
         let mut ReadyGroups: BTreeMap<u32, Rc<RefCell<FightGroup>>> = BTreeMap::new();
         let mut PreStartGroups: BTreeMap<u32, Rc<RefCell<FightGame>>> = BTreeMap::new();
         let mut GameingGroups: BTreeMap<u32, Rc<RefCell<FightGame>>> = BTreeMap::new();
@@ -1597,31 +1595,28 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
         for mode in modes.clone() {
             let sql = format!(r#"select count(*) from information_schema.tables where TABLE_NAME='{}';"#, mode);
             let mut qres: mysql::QueryResult = conn.query(sql.clone())?;
-            let v = qres.next().unwrap();
-            println!("{:?}", v);
-            let insert_sql = format!(r#"create TABLE {} (
-                id INT UNSIGNED NOT NULL,
-                score INT UNSIGNED NOT NULL,
-                Win INT UNSIGNED NOT NULL,
-                Lose INT UNSIGNED NOT NULL,
-                create_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (id)
-            );"#, "ng1p2t");
+            let v = qres.next()
+                .unwrap()
+                .unwrap()
+                .take(0)
+                .unwrap();
+            let res = mysql::from_value::<i32>(v);
+            if res == 0 {
+                let insert_sql = format!(r#"create TABLE {} (
+                    id INT UNSIGNED NOT NULL,
+                    score INT UNSIGNED NOT NULL,
+                    Win INT UNSIGNED NOT NULL,
+                    Lose INT UNSIGNED NOT NULL,
+                    create_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id)
+                );"#, mode);
+                let mut conn = pool.get_conn()?;
+                conn.query(insert_sql.clone())?;
+            }
         }
-        let sql = format!(r#"select userid, name, Level, Exp, Money, Currency, a.score as rk1v1Score, a.Win as rk1v1Win, a.Lose as rk1v1Lose, 
-        b.score as ng1v1Score, b.Win as ng1v1Win, b.Lose as ng1v1Lose, 
-        c.score as rk5v5Score, c.Win as rk5v5Win, c.Lose as rk5v5Lose, 
-        d.score as ng5v5Score, d.Win as ng5v5Win, d.Lose as ng5v5Lose, e.honor as honor from user as f 
-                            join user_rk1v1 as a on a.id=f.id
-                            join user_ng1v1 as b on b.id=f.id
-                            join user_rk5v5 as c on c.id=f.id
-                            join user_ng5v5 as d on d.id=f.id
-                            join user_honor as e on e.id=f.id;"#);
-        
+        let sql = format!(r#"select userid, name, Level, Exp, Money, Currency, e.honor as honor from user as f join user_honor as e on e.id=f.id;"#);
         let qres2: mysql::QueryResult = conn.query(sql.clone())?;
         let mut userid: String = "".to_owned();
-        let mut ng: i16 = 0;
-        let mut rk: i16 = 0;
         let mut name: String = "".to_owned();
         let id = 0;
         
@@ -1635,53 +1630,26 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                 honor: mysql::from_value(a.get("honor").unwrap()),
                 ..Default::default()
             };
-
-            let ng1v1Info = ScoreInfo {
-                score: mysql::from_value(a.get("ng1v1Score").unwrap()),
-                WinCount: mysql::from_value(a.get("ng1v1Win").unwrap()),
-                LoseCount: mysql::from_value(a.get("ng1v1Lose").unwrap()),
-            };
-            let rk1v1Info = ScoreInfo {
-                score: mysql::from_value(a.get("rk1v1Score").unwrap()),
-                WinCount: mysql::from_value(a.get("rk1v1Win").unwrap()),
-                LoseCount: mysql::from_value(a.get("rk1v1Lose").unwrap()),
-            };
-            let ng5v5Info = ScoreInfo {
-                score: mysql::from_value(a.get("ng5v5Score").unwrap()),
-                WinCount: mysql::from_value(a.get("ng5v5Win").unwrap()),
-                LoseCount: mysql::from_value(a.get("ng5v5Lose").unwrap()),
-            };
-            let rk5v5Info = ScoreInfo {
-                score: mysql::from_value(a.get("rk5v5Score").unwrap()),
-                WinCount: mysql::from_value(a.get("rk5v5Win").unwrap()),
-                LoseCount: mysql::from_value(a.get("rk5v5Lose").unwrap()),
-            };
-
-            // user.ng1v1 = ng1v1Info;
-            // user.ng5v5 = ng5v5Info;
-            // user.rk1v1 = rk1v1Info;
-            // user.rk5v5 = rk5v5Info;
-
             user.info.PlayerLv =  mysql::from_value(a.get("Level").unwrap());
             user.info.PlayerExp =  mysql::from_value(a.get("Exp").unwrap());
             user.info.TotalCurrency = mysql::from_value(a.get("Currency").unwrap());
-            
-            // let equ = UserEquInfo {
-            //     equ_id: 1,
-            //     rank: 1,
-            //     lv: 3,
-            //     lv5: 2,
-            //     option1lv: 0,
-            //     option2lv: 0,
-            //     option3lv: 0,
-            //     ..Default::default()
-            // };
-            // user.info.TotalEquip.push(equ);
-            //println!("{:?}", user);
             TotalUsers.insert(id, Rc::new(RefCell::new(user.clone())));
         }
-
-
+        for mode in modes.clone() {
+            let sql = format!(r#"select userid, a.score as Score, a.Win as Win, a.Lose as Lose from user as f join {} as a on a.id=f.id;"#, mode);
+            let qres2: mysql::QueryResult = conn.query(sql.clone())?;
+            for row in qres2 {
+                let a = row?.clone();
+                let id: String =mysql::from_value(a.get("userid").unwrap());
+                let info = ScoreInfo {
+                    score: mysql::from_value(a.get("Score").unwrap()),
+                    WinCount: mysql::from_value(a.get("Win").unwrap()),
+                    LoseCount: mysql::from_value(a.get("Lose").unwrap()),
+                };
+                let u = TotalUsers.get_mut(&id).unwrap();
+                u.borrow_mut().rank.insert(mode.clone(), info);
+            }
+        }
         let es = format!(r#"select b.userid, a.equ_id, a.Rank, a.Lv, a.Lv5, a.Option1, a.Option2, a.Option3, a.Option1Lv, a.Option2Lv, a.Option3Lv from equ_info as a join user as b on a.id=b.id;"#);
         let eq = conn.query(es.clone())?;
             
@@ -1705,13 +1673,8 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                     ..Default::default()
                 };
                 u.borrow_mut().info.TotalEquip.push(equ);
-
-                // u.borrow_mut().blacklist.push(mysql::from_value(a.get("black_id").unwrap()));
-                // println!("userid: {}, blacklist: {:?}", u.borrow().id, u.borrow().blacklist);
-            }
-            
+            }   
         }
-        println!("1842");
 
         let s = format!(r#"select a.userid, black_id from user_blacklist as b join user as a on a.id=b.id;"#);
         let q = conn.query(s.clone())?;
@@ -1747,12 +1710,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
             }
             
         }
-        println!("1878");
-        println!("userid: {}", userid);
-        //ng = mysql::from_value(a.get("ng").unwrap());
-        //rk = mysql::from_value(a.get("rk").unwrap());
-        //name = mysql::from_value(a.get("name").unwrap());
-            
+        println!("userid: {}", userid);            
         let Equip_sql = format!("select * from equipment;");
         let Equip_qres2: mysql::QueryResult = conn.query(Equip_sql.clone())?;
         for row in Equip_qres2 {
