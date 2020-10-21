@@ -827,6 +827,30 @@ pub fn HandleSqlRequest(pool: mysql::Pool)
         let mut RemoveBlack: Vec<Black> = Vec::new();
         let mut remove_black_len = 0;
 
+        let file_path = "src/config.toml";
+        let mut file = match File::open(file_path) {
+            Ok(f) => f,
+            Err(e) => panic!("no such file {} exception:{}", file_path, e)
+        };
+        let mut str_val = String::new();
+        match file.read_to_string(&mut str_val) {
+            Ok(s) => s
+            ,
+            Err(e) => panic!("Error Reading file: {}", e)
+        };
+        let config: Config = toml::from_str(&str_val).unwrap();
+        
+        let mut ModeCfg: BTreeMap<String, GameModeCfg> = BTreeMap::new();
+        for x in config.game_mode.unwrap() {
+            let gmc = GameModeCfg {
+                mode: x.MODE.clone().unwrap(),
+                team_size: x.TEAM_SIZE.unwrap(),
+                match_size: x.MATCH_SIZE.unwrap()
+            };
+            ModeCfg.insert(x.MODE.clone().unwrap(), gmc);
+        }
+        let modes: Vec<String> = ModeCfg.into_iter().map(|(k, v)| k).collect();
+        
         #[cfg(target_os = "linux")]
         let update1000ms = tick(Duration::from_millis(1000));
 
@@ -857,7 +881,6 @@ pub fn HandleSqlRequest(pool: mysql::Pool)
                                 if i < len-1 {
                                     insert_str += ",";
                                 }
-                                
                             }
                             insert_str += ";";
                             
@@ -876,78 +899,25 @@ pub fn HandleSqlRequest(pool: mysql::Pool)
                                 let a = row?.clone();
                                 id = mysql::from_value(a.get("id").unwrap());
                             }
-
-                            let mut insert_hero: String = "insert into user_hero (id, Hero, HeroLv, HeroMastery) values".to_string();
-                            for i in 0..len {
-                                for (j, h) in hero.iter().enumerate() {
-                                    let mut new_hero = format!(" ('{}', '{}', 1, 0)", id+i, h);
-                                    insert_hero += &new_hero;
-                                    if j < hero.len()-1 {
+                            for mode in modes.clone() {
+                                let mut insert_hero: String = format!("insert into {} (id, Hero, HeroLv, HeroMastery) values", mode);
+                                for i in 0..len {
+                                    for (j, h) in hero.iter().enumerate() {
+                                        let mut new_hero = format!(" ('{}', '{}', 1, 0)", id+i, h);
+                                        insert_hero += &new_hero;
+                                        if j < hero.len()-1 {
+                                            insert_hero += ",";
+                                        }
+                                    }
+                                    if i < len-1 {
+                                        insert_str += ",";
                                         insert_hero += ",";
                                     }
                                 }
-                                if i < len-1 {
-                                    insert_str += ",";
-                                    insert_hero += ",";
-                                }
+                                insert_hero += ";";
+                                conn.query(insert_hero.clone())?;
                             }
-                            insert_hero += ";";
-                            conn.query(insert_hero.clone())?;
                             
-
-                            let mut insert_rk: String = "insert into user_rk1v1 (id, score, Win, Lose) values".to_string();
-                            for i in 0..len {
-                                let mut new_user = format!(" ({}, 1000, 0, 0)", id+i);
-                                insert_rk += & new_user;
-                                if i < len-1 {
-                                    insert_rk += ",";
-                                }
-                            }
-                            insert_rk += ";";
-                            //println!("{}", insert_rk);
-                            conn.query(insert_rk.clone())?;
-                            
-
-                            let mut insert_rk1: String = "insert into user_rk5v5 (id, score, Win, Lose) values".to_string();
-                            for i in 0..len {
-                                let mut new_user = format!(" ({}, 1000, 0, 0)", id+i);
-                                insert_rk1 += & new_user;
-                                if i < len-1 {
-                                    insert_rk1 += ",";
-                                }
-                            }
-                            insert_rk1 += ";";
-                            //println!("{}", insert_rk1);
-                            conn.query(insert_rk1.clone())?;
-                            
-
-
-                            let mut insert_ng: String = "insert into user_ng1v1 (id, score, Win, Lose) values".to_string();
-                            for i in 0..len {
-                                let mut new_user = format!(" ({}, 1000, 0, 0)", id+i);
-                                insert_ng += &new_user;
-                                if i < len-1 {
-                                    insert_ng += ",";
-                                }
-                            }
-                            insert_ng += ";";
-                            //println!("{}", insert_ng);
-                            conn.query(insert_ng.clone())?;
-                            
-                            
-                            let mut insert_ng1: String = "insert into user_ng5v5 (id, score, Win, Lose) values".to_string();
-                            for i in 0..len {
-                                let mut new_user = format!(" ({}, 1000, 0, 0)", id+i);
-                                insert_ng1 += &new_user;
-                                if i < len-1 {
-                                    insert_ng1 += ",";
-                                }
-                            }
-                            insert_ng1 += ";";
-                            //println!("{}", insert_ng1);
-                            conn.query(insert_ng1.clone())?;
-                            
-
                             let mut insert_honor: String = "insert into user_honor (id, honor) values".to_string();
                             for i in 0..len {
                                 let mut new_user = format!(" ({}, 50)", id+i);
@@ -959,9 +929,6 @@ pub fn HandleSqlRequest(pool: mysql::Pool)
                             insert_honor += ";";
                             //println!("{}", insert_honor);
                             conn.query(insert_honor.clone())?;
-                            
-
-
                             len = 0;
                             NewUsers.clear();
                         }
@@ -1240,11 +1207,15 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                                     continue;
                                 }
                                 let mut group_score = 0;
-                                group_score = g.avg[&mode];
-
+                                //group_score = g.avg[&mode];
+                                if let Some(avg) = g.avg.get(&mode) {
+                                    group_score = *avg;
+                                }
                                 let mut room_score = 0;
-                                room_score = v.borrow().avg[&mode];
-
+                                //room_score = v.borrow().avg[&mode];
+                                if let Some(avg) = v.borrow().avg.get(&mode) {
+                                    room_score = *avg;
+                                }
                                 if g.user_len > 0 && g.user_len < team_size && (group_score + v.borrow().queue_cnt*score_interval) < room_score {
                                     for r in g.rid {
                                         id.push(r);
@@ -1260,9 +1231,7 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                                     g.honor = v.borrow().honor.clone();
                                     let mut ng = (group_score * g.user_len + room_score * v.borrow().user_len) as i16 / (g.user_len + v.borrow().user_len) as i16;
                                     //g.avg[&mode] = ng;
-                                    if let Some(avg) = g.avg.get_mut(&mode) {
-                                        *avg = ng;
-                                    }
+                                    g.avg.insert(mode.clone(), ng);
                                     
                                     g.user_len += v.borrow().user_len;
                                     v.borrow_mut().ready = 1;
@@ -1287,9 +1256,7 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                                         }
                                         let mut score = (group_score * g.user_len + room_score * v.borrow().user_len) as i16 / (g.user_len + v.borrow().user_len) as i16;
                                         //g.avg[&mode] = score;
-                                        if let Some(avg) = g.avg.get_mut(&mode) {
-                                            *avg = score;
-                                        }
+                                        g.avg.insert(mode.clone(), score);
                                         if (g.max_room_len < v.borrow().user_len) {
                                             g.max_room_len = v.borrow().user_len.clone()
                                         }
@@ -1378,7 +1345,10 @@ pub fn HandleQueueRequest(msgtx: Sender<MqttMsg>, sender: Sender<RoomEventData>,
                                 continue;
                             }
                             let mut group_score = 0;
-                            group_score = rg.borrow().avg[&mode];
+                            //group_score = rg.borrow().avg[&mode];
+                            if let Some(avg) = rg.borrow().avg.get(&mode) {
+                                group_score = *avg;
+                            }
                             if rg.borrow().game_status == 0 && fg.team_len < match_size {
                                 if total_score == 0 {
                                     total_score += group_score as i16;
@@ -1688,9 +1658,7 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                 u.borrow_mut().blacklist.push(mysql::from_value(a.get("black_id").unwrap()));
                 println!("userid: {}, blacklist: {:?}", u.borrow().id, u.borrow().blacklist);
             }
-            
         }
-        
         let s = format!(r#"select a.userid, Hero, HeroLv, HeroMastery from user_hero as b join user as a on a.id=b.id;"#);
         let q = conn.query(s.clone())?;
             
@@ -1708,9 +1676,8 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                 u.borrow_mut().info.HeroExp.insert(hero.Hero_name.clone(), hero);
                 //println!("userid: {}, hero: {:?}", u.borrow().id, u.borrow().info.HeroExp);
             }
-            
         }
-        println!("userid: {}", userid);            
+        println!("TotalUsers: {:#?}", TotalUsers);            
         let Equip_sql = format!("select * from equipment;");
         let Equip_qres2: mysql::QueryResult = conn.query(Equip_sql.clone())?;
         for row in Equip_qres2 {
