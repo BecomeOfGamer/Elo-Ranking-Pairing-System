@@ -298,13 +298,25 @@ pub struct UserInfoData {
     pub Currency: u32,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct UserGift {
     pub A: u8,
     pub B: u8,
     pub C: u8,
     pub D: u8,
     pub E: u8,
+}
+
+impl Default for UserGift {
+    fn default() -> Self { 
+        UserGift {
+            A:1,
+            B:1,
+            C:1,
+            D:1,
+            E:1,
+        }
+     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
