@@ -335,11 +335,11 @@ impl FightGroup {
                 msg: msg.clone(), ..Default::default()});
         }
     }
-    pub fn get_users_id_hero(&self) -> Vec<(String, String, String, Vec<UserEquInfo>)> {
-        let mut res: Vec<(String, String, String, Vec<UserEquInfo>)> = vec![];
+    pub fn get_users_id_hero(&self) -> Vec<(String, String, String, Vec<UserEquInfo>, UserGift)> {
+        let mut res: Vec<(String, String, String, Vec<UserEquInfo>, UserGift)> = vec![];
         for r in &self.rooms {
             for u in &r.borrow().users {
-                res.push((u.borrow().id.clone(), u.borrow().name.clone(), u.borrow().hero.clone(), u.borrow().info.TotalEquip.clone()));
+                res.push((u.borrow().id.clone(), u.borrow().name.clone(), u.borrow().hero.clone(), u.borrow().info.TotalEquip.clone(), u.borrow().Talent.clone()));
             }
         }
         res

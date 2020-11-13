@@ -616,11 +616,10 @@ fn SendGameList(game: &Rc<RefCell<FightGame>>, msgtx: &Sender<MqttMsg>, conn: &m
     res.game = game.borrow().game_id;
     for (i, t) in game.borrow().teams.iter().enumerate() {
         let ids = t.borrow().get_users_id_hero();
-        for (id, name, hero, equip) in &ids {
-            let mut h: HeroCell = HeroCell {id:id.clone(), team: (i+1) as u16, name:name.clone(), hero:hero.clone(), ..Default::default() };
-
+        for (id, name, hero, equip, talent) in &ids {
+            let mut h: HeroCell = HeroCell {id:id.clone(), team: (i+1) as u16, name:name.clone(), hero:hero.clone(), 
+                Talent:talent.clone(), ..Default::default() };
             println!("equip: {:?}", equip);
-
             for e in equip {
                 let equ = TotalEquip.get(&e.equ_id.clone());
                 if let Some(equ) = equ {
