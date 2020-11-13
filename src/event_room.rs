@@ -3709,6 +3709,7 @@ pub fn talent(id: String, v: Value, sender: Sender<RoomEventData>)
  -> std::result::Result<(), Error>
 {
     let data: TalentData = serde_json::from_value(v)?;
+    //info!("TalentData {:#?}", data);
     sender.try_send(RoomEventData::Talent(data));
     Ok(())
 }

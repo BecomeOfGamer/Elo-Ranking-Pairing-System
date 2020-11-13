@@ -216,6 +216,7 @@ fn main() -> std::result::Result<(), Error> {
     mqtt_client.subscribe("member/+/send/add_black_list", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("member/+/send/query_black_list", QoS::AtMostOnce).unwrap();
     mqtt_client.subscribe("member/+/send/remove_black_list", QoS::AtMostOnce).unwrap();
+    mqtt_client.subscribe("member/+/send/talent", QoS::AtMostOnce).unwrap();
 
 
     mqtt_client.subscribe("room/+/send/create", QoS::AtMostOnce).unwrap();
@@ -538,7 +539,7 @@ fn main() -> std::result::Result<(), Error> {
                                 } else if retalent.is_match(topic_name) {
                                     let cap = retalent.captures(topic_name).unwrap();
                                     let userid = cap[1].to_string();
-                                    //info!("choose ng hero: userid: {} json: {:?}", userid, v);
+                                    //info!("talent hero: userid: {} json: {:?}", userid, v);
                                     event_room::talent(userid, v, sender.clone())?;
                                 } else if rejoin.is_match(topic_name) {
                                     let cap = rejoin.captures(topic_name).unwrap();
