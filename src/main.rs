@@ -379,6 +379,7 @@ fn main() -> std::result::Result<(), Error> {
     let regame_close = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/game_close").unwrap();
     let restatus = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/status").unwrap();
     let rereconnect = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/reconnect").unwrap();
+    let retalent = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/talent").unwrap();
     let regetRP = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/replay").unwrap();
     let reuploadRP = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/upload").unwrap();
     let reuploadRPRes = Regex::new(r"\w+/(((\w+)(\-)*)+)/send/result_upload").unwrap();
@@ -475,7 +476,6 @@ fn main() -> std::result::Result<(), Error> {
         use rumqtt::Notification::Publish;
         
         select! {
-            
             recv (check_server) -> _ => {
                 if isBackup {
                     //println!("isServerLive {}", isServerLive);
@@ -535,6 +535,11 @@ fn main() -> std::result::Result<(), Error> {
                                     let userid = cap[1].to_string();
                                     //info!("choose ng hero: userid: {} json: {:?}", userid, v);
                                     event_room::choose_ng_hero(userid, v, sender.clone())?;
+                                } else if retalent.is_match(topic_name) {
+                                    let cap = retalent.captures(topic_name).unwrap();
+                                    let userid = cap[1].to_string();
+                                    //info!("choose ng hero: userid: {} json: {:?}", userid, v);
+                                    event_room::talent(userid, v, sender.clone())?;
                                 } else if rejoin.is_match(topic_name) {
                                     let cap = rejoin.captures(topic_name).unwrap();
                                     let userid = cap[1].to_string();

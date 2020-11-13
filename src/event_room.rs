@@ -3699,6 +3699,14 @@ pub fn choose_ng_hero(id: String, v: Value, sender: Sender<RoomEventData>)
     Ok(())
 }
 
+pub fn talent(id: String, v: Value, sender: Sender<RoomEventData>)
+ -> std::result::Result<(), Error>
+{
+    let data: TalentData = serde_json::from_value(v)?;
+    sender.try_send(RoomEventData::Talent(data));
+    Ok(())
+}
+
 pub fn invite(id: String, v: Value, sender: Sender<RoomEventData>)
  -> std::result::Result<(), Error>
 {
