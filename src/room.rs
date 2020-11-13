@@ -8,6 +8,7 @@ use crate::msg::*;
 use crossbeam_channel::{bounded, tick, Sender, Receiver, select};
 use failure::Error;
 use rust_decimal::Decimal;
+use crate::event_room::UserGift;
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct GameServer {
@@ -127,6 +128,7 @@ pub struct User {
     pub rid: u32,
     pub gid: u32,
     pub game_id: u32,
+    pub Talent: UserGift,
     pub online: bool,
     pub start_prestart: bool,
     pub prestart_get: bool,

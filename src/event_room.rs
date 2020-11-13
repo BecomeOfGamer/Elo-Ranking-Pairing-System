@@ -120,6 +120,12 @@ pub struct StartQueueData {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TalentData {
+    pub id: String,
+    pub Talent: UserGift,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CancelQueueData {
     pub id: String,
     pub action: String,
@@ -292,13 +298,13 @@ pub struct UserInfoData {
     pub Currency: u32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 pub struct UserGift {
-    pub A: u16,
-    pub B: u16,
-    pub C: u16,
-    pub D: u16,
-    pub E: u16,
+    pub A: u8,
+    pub B: u8,
+    pub C: u8,
+    pub D: u8,
+    pub E: u8,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -443,6 +449,7 @@ pub enum RoomEventData {
     Join(JoinRoomData),
     StartQueue(StartQueueData),
     CancelQueue(CancelQueueData),
+    Talent(TalentData),
     UpdateGame(PreGameData),
     PreStart(PreStartData),
     PreStartGet(PreStartGetData),
@@ -611,11 +618,6 @@ fn SendGameList(game: &Rc<RefCell<FightGame>>, msgtx: &Sender<MqttMsg>, conn: &m
         let ids = t.borrow().get_users_id_hero();
         for (id, name, hero, equip) in &ids {
             let mut h: HeroCell = HeroCell {id:id.clone(), team: (i+1) as u16, name:name.clone(), hero:hero.clone(), ..Default::default() };
-            h.Talent.A = 1;
-            h.Talent.B = 3;
-            h.Talent.C = 3;
-            h.Talent.D = 3;
-            h.Talent.E = 3;
 
             println!("equip: {:?}", equip);
 
@@ -2401,6 +2403,12 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                                 TotalRoom.remove(&u.borrow().rid);
                                             }
                                             u.borrow_mut().rid = 0;
+                                    }
+                                },
+                                RoomEventData::Talent(x) => {
+                                    let u = TotalUsers.get(&x.id);
+                                    if let Some(u) = u {
+                                        u.borrow_mut().Talent = x.Talent.clone();
                                     }
                                 },
                                 RoomEventData::ChooseNGHero(x) => {
