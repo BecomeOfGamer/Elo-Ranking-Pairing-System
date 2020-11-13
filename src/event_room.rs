@@ -2408,6 +2408,12 @@ pub fn init(msgtx: Sender<MqttMsg>, sender: Sender<SqlData>, pool: mysql::Pool, 
                                     let u = TotalUsers.get(&x.id);
                                     if let Some(u) = u {
                                         u.borrow_mut().Talent = x.Talent.clone();
+                                        mqttmsg = MqttMsg{topic:format!("member/{}/res/talent", u.borrow().id), 
+                                            msg: format!(r#"{{"room":"{}","msg":"ok"}}"#, u.borrow().id), ..Default::default()};
+                                    }
+                                    else {
+                                        mqttmsg = MqttMsg{topic:format!("member/{}/res/talent", u.borrow().id), 
+                                            msg: format!(r#"{{"room":"{}","msg":"fail"}}"#, u.borrow().id), ..Default::default()};
                                     }
                                 },
                                 RoomEventData::ChooseNGHero(x) => {
