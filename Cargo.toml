@@ -17,7 +17,7 @@ clap = "2"
 log = "0.4.8"
 env_logger = "0.7.1"
 uuid = { version = "0.7", features = ["v4"] }
-time = "0.1"
+time = "0.2"
 bit-vec = "0.5"
 byteorder = "1"
 bytes = "0.4"
